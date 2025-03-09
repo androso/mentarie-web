@@ -1,3 +1,18 @@
 modules = ["nodejs-20"]
 [nix]
 channel = "stable-24_05"
+
+[workflows]
+
+[[workflows.workflow]]
+name = "dev"
+mode = "sequential"
+author = 10840079
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm dev"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
