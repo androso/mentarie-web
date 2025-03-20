@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Eye, Mail, Lock, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { GoogleLogin, CredentialResponse } from "@react-oauth/google"
+import { useRouter } from "next/navigation"
 
 // Define the props interface outside of the component
 interface SignInFormProps {
@@ -11,10 +12,13 @@ interface SignInFormProps {
 }
 
 export default function SignInForm({ onSwitchForm }: SignInFormProps) {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isEmailInvalid, setIsEmailInvalid] = useState(false)
+  const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
   const togglePasswordVisibility = () => {
     setShowPassword(prev => !prev)
@@ -26,25 +30,105 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
     setIsEmailInvalid(value.length > 0 && !value.includes("@"))
   }
 
-  const handleGoogleLoginSuccess = (response: CredentialResponse) => {
-    const token = response.credential // Google token
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ token }),
-    })
-    .then((res) => res.json())
-    .then((data) => {
-      localStorage.setItem('accessToken', data.accessToken)
-      localStorage.setItem('refreshToken', data.refreshToken)
-    })
-    .catch(console.error)
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    
+    if (!email || !password) {
+      setError("Email and password are required")
+      return
+    }
+    
+    if (isEmailInvalid) {
+      setError("Please enter a valid email address")
+      return
+    }
+    
+    setIsLoading(true)
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to sign in")
+      }
+      
+      // Store tokens properly
+      if (data.token) {
+        if (data.token.accessTk) {
+          localStorage.setItem('accessToken', data.token.accessTk)
+        }
+        if (data.token.refreshTk) {
+          localStorage.setItem('refreshToken', data.token.refreshTk)
+        }
+      }
+      
+      // Redirect to dashboard or home page
+      router.push('/dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleGoogleLoginSuccess = async (response: CredentialResponse) => {
+    if (!response.credential) {
+      setError("Google authentication failed")
+      return
+    }
+    
+    setIsLoading(true)
+    setError("")
+    
+    try {
+      const backendResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ token: response.credential }),
+      })
+      
+      const data = await backendResponse.json()
+      
+      if (!backendResponse.ok) {
+        throw new Error(data.message || "Google authentication failed")
+      }
+      
+      // Store tokens properly - using the format from your backend
+      if (data.token) {
+        if (data.token.accessTk) {
+          localStorage.setItem('accessToken', data.token.accessTk)
+        }
+        if (data.token.refreshTk) {
+          localStorage.setItem('refreshToken', data.token.refreshTk)
+        }
+      }
+      
+      // Redirect to the home page after successful Google login
+      router.push('/home');
+      
+    } catch (err) {
+      console.error('Google login error:', err)
+      setError(err instanceof Error ? err.message : "Failed to authenticate with Google")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleGoogleLoginFailure = () => {
-    console.error('Google Login Failed')
+    setError("Google sign-in was unsuccessful. Please try again.")
   }
 
   return (
@@ -73,7 +157,14 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
 
             <h1 className="text-4xl font-bold text-center mb-8 text-[#4a3728]">Sign In To Mentarie</h1>
 
-            <div className="space-y-6">
+            {/* Error Message Display */}
+            {error && (
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                <span className="block sm:inline">{error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSignIn} className="space-y-6">
               {/* Email Input */}
               <div className="space-y-2">
                 <label htmlFor="email" className="block text-lg font-medium text-[#4a3728]">Email Address</label>
@@ -95,7 +186,7 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
                     <div className="bg-[#e67e51] text-white rounded-full p-1 mr-2 flex items-center justify-center w-5 h-5">
                       <span className="text-sm font-bold">!</span>
                     </div>
-                    Invalid Email Address!!
+                    Invalid Email Address!
                   </div>
                 )}
               </div>
@@ -129,22 +220,33 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
               <div className="flex flex-col justify-center items-center space-y-4">
                 <button
                   type="submit"
-                  className="w-full bg-[#4a3728] text-white py-3 rounded-full flex items-center justify-center space-x-2 hover:bg-[#3a2a1f] transition-colors"
+                  disabled={isLoading}
+                  className="w-full bg-[#4a3728] text-white py-3 rounded-full flex items-center justify-center space-x-2 hover:bg-[#3a2a1f] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="text-xl font-medium">Sign In</span>
-                  <ArrowRight className="h-5 w-5" />
+                  <span className="text-xl font-medium">
+                    {isLoading ? "Signing In..." : "Sign In"}
+                  </span>
+                  {!isLoading && <ArrowRight className="h-5 w-5" />}
                 </button>
 
+                {/* Divider */}
+                <div className="relative w-full flex items-center justify-center mt-4">
+                  <div className="border-t border-gray-300 w-full"></div>
+                  <span className="bg-[#f5f2ef] px-3 text-sm text-gray-500 absolute">or</span>
+                </div>
+
                 {/* Google Login Button */}
-                <GoogleLogin
-                  onSuccess={handleGoogleLoginSuccess}
-                  onError={handleGoogleLoginFailure}
-                  useOneTap
-                  shape="pill"
-                  text="signin_with"
-                  theme="outline"
-                  
-                />
+                <div className="w-full flex justify-center mt-2">
+                  <GoogleLogin
+                    onSuccess={handleGoogleLoginSuccess}
+                    onError={handleGoogleLoginFailure}
+                    useOneTap
+                    shape="pill"
+                    text="signin_with"
+                    theme="outline"
+                    width="100%"
+                  />
+                </div>
               </div>
 
               {/* Links for Signup and Forgot Password */}
@@ -166,11 +268,10 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
 
               <div className="text-center mt-6 text-[#4a3728]">
                 <Link href="/PasswordReset" className="text-[#e67e51] hover:underline font-medium">
-
                   Forgot Password?
                 </Link>
               </div>
-            </div>
+            </form>
 
             {/* Bottom indicator - only on mobile */}
             <div className="flex justify-center pt-8 md:hidden">

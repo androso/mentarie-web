@@ -15,7 +15,7 @@ export default function Home() {
   }
 
   return (
-    <GoogleOAuthProvider clientId="YOUR_GOOGLE_CLIENT_ID">
+    <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
       <main className="flex min-h-screen flex-col items-center justify-center bg-[#f5f2ef]">
         {showSignIn ? (
           <SignInForm onSwitchForm={toggleForm} />
