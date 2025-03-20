@@ -1,5 +1,3 @@
-"use client"
-
 import type React from "react"
 import { useState } from "react"
 import { Eye, Mail, Lock, Check, ArrowRight } from "lucide-react"
@@ -16,6 +14,8 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
   const [password, setPassword] = useState("")
   const [isEmailInvalid, setIsEmailInvalid] = useState(false)
   const [isAgreed, setIsAgreed] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)
@@ -27,6 +27,46 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
     setIsEmailInvalid(e.target.value.length > 0 && !e.target.value.includes("@"))
   }
 
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Validate form fields before sending the request
+    if (!email || !password || isEmailInvalid || !isAgreed) {
+      setErrorMessage("Please fill out all fields and agree to the terms.");
+      return;
+    }
+
+    setIsLoading(true)
+    setErrorMessage("") // Clear any previous error messages
+
+    try {
+      const response = await fetch("/api/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        setErrorMessage(data.message || "An error occurred. Please try again.")
+      } else {
+        // Handle successful sign-up (redirect or message)
+        alert("Sign-up successful! You can now log in.")
+        setEmail("")
+        setPassword("")
+      }
+    } catch (error) {
+      setErrorMessage("Failed to connect to the server. Please try again later.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="flex justify-center items-center min-h-screen bg-[#f5f2ef]">
       <div className="w-full max-w-4xl flex shadow-2xl rounded-2xl overflow-hidden">
@@ -34,12 +74,8 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
         <div className="relative w-2/5 bg-[#222] hidden md:block">
           <div className="absolute inset-y-0 right-0">
             <svg viewBox="0 0 20 100" preserveAspectRatio="none" className="h-full w-10 fill-[#f5f2ef]">
-            <path d="M0,0 
-         C50,125 30,250 50,375 
-         C30,450 0,500 0,500 
-         L100,500 
-         L100,0 
-         Z" />            </svg>
+              <path d="M0,0 C50,125 30,250 50,375 C30,450 0,500 0,500 L100,500 L100,0 Z" />
+            </svg>
           </div>
           <div className="flex flex-col justify-center items-center h-full px-8">
             <div className="w-24 h-24 bg-[#e0e0e0] rounded-sm mb-8"></div>
@@ -130,18 +166,33 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
                 </span>
               </div>
 
+              {errorMessage && (
+                <div className="mt-2 bg-[#f8d7c7] text-[#e67e51] px-4 py-2 rounded-full flex items-center">
+                  <div className="bg-[#e67e51] text-white rounded-full p-1 mr-2 flex items-center justify-center w-5 h-5">
+                    <span className="text-sm font-bold">!</span>
+                  </div>
+                  {errorMessage}
+                </div>
+              )}
+
               <button
                 type="submit"
+                onClick={handleSignUp}
                 className="w-full bg-[#4a3728] text-white py-3 rounded-full flex items-center justify-center space-x-2 hover:bg-[#3a2a1f] transition-colors"
+                disabled={isLoading}
               >
-                <span className="text-xl font-medium">Sign Up</span>
+                {isLoading ? (
+                  <span className="text-xl font-medium">Signing Up...</span>
+                ) : (
+                  <span className="text-xl font-medium">Sign Up</span>
+                )}
                 <ArrowRight className="h-5 w-5" />
               </button>
 
               <div className="text-center mt-6 text-[#4a3728]">
                 Already have an account?{" "}
                 {onSwitchForm ? (
-                  <button 
+                  <button
                     onClick={onSwitchForm}
                     className="text-[#e67e51] hover:underline font-medium"
                   >
