@@ -28,7 +28,7 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
 
   const handleGoogleLoginSuccess = (response: CredentialResponse) => {
     const token = response.credential // Google token
-    fetch('/api/auth/google', {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
