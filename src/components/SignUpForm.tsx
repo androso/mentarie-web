@@ -3,16 +3,22 @@ import { useState } from "react"
 import { Eye, Mail, Lock, Check, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
-// Define the props interface outside of the component
+// Use the same environment variable as your Google login
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+
 interface SignUpFormProps {
   onSwitchForm?: () => void
 }
 
 export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [isEmailInvalid, setIsEmailInvalid] = useState(false)
+  const [passwordsMatch, setPasswordsMatch] = useState(true)
   const [isAgreed, setIsAgreed] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -21,18 +27,35 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
     setShowPassword(!showPassword)
   }
 
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword)
+  }
+
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value)
     // Simple validation for demonstration
     setIsEmailInvalid(e.target.value.length > 0 && !e.target.value.includes("@"))
   }
 
+  const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setConfirmPassword(e.target.value)
+    setPasswordsMatch(e.target.value === password || e.target.value === "")
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value)
+    setPasswordsMatch(confirmPassword === "" || confirmPassword === e.target.value)
+  }
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Log form data for debugging
+    logFormData();
 
     // Validate form fields before sending the request
-    if (!email || !password || isEmailInvalid || !isAgreed) {
-      setErrorMessage("Please fill out all fields and agree to the terms.");
+    if (!name || !email || !password || !confirmPassword || isEmailInvalid || !passwordsMatch || !isAgreed) {
+      setErrorMessage("Please fill out all fields correctly and agree to the terms.");
       return;
     }
 
@@ -40,7 +63,9 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
     setErrorMessage("") // Clear any previous error messages
 
     try {
-      const response = await fetch("/api/signup", {
+      // Use the same URL pattern as your Google login
+      console.log("Submitting registration to:", `${API_BASE_URL}/api/auth/register`);
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -48,17 +73,31 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
         body: JSON.stringify({
           email,
           password,
+          name,
         }),
+        credentials: "include", // Include cookies in the request
       })
 
+      console.log("Response status:", response.status);
+      
       if (!response.ok) {
-        const data = await response.json()
-        setErrorMessage(data.message || "An error occurred. Please try again.")
+        try {
+          const data = await response.json();
+          console.error("Error response:", data);
+          setErrorMessage(data.message || "An error occurred. Please try again.");
+        } catch (parseError) {
+          console.error("Error parsing response:", parseError);
+          setErrorMessage(`Server error (${response.status}): ${response.statusText}`);
+        }
       } else {
         // Handle successful sign-up (redirect or message)
-        alert("Sign-up successful! You can now log in.")
-        setEmail("")
-        setPassword("")
+        const data = await response.json();
+        console.log("Success response:", data);
+        alert("Sign-up successful! Please verify your email to continue.");
+        setName("");
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
       }
     } catch (error) {
       setErrorMessage("Failed to connect to the server. Please try again later.")
@@ -67,6 +106,11 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
     }
   }
 
+  // Add additional logging for debugging
+  const logFormData = () => {
+    console.log("Form Data:", { name, email, password, confirmPassword });
+  };
+  
   return (
     <div className="flex justify-center items-center min-h-screen bg-[#f5f2ef]">
       <div className="w-full max-w-4xl flex shadow-2xl rounded-2xl overflow-hidden">
@@ -95,6 +139,25 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
             <h1 className="text-4xl font-bold text-center mb-8 text-[#4a3728]">Sign Up For Free</h1>
             
             <div className="space-y-6">
+              <div className="space-y-2">
+                <label htmlFor="name" className="block text-lg font-medium text-[#4a3728]">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="pl-12 pr-4 py-3 w-full bg-white rounded-full border-2 border-[#f8d7c7] focus:outline-none focus:border-[#f8d7c7] text-gray-700"
+                    placeholder="Enter your full name..."
+                  />
+                  <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#4a3728]">
+                    <Check className="h-5 w-5" />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label htmlFor="email" className="block text-lg font-medium text-[#4a3728]">
                   Email Address
@@ -131,7 +194,7 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
                     type={showPassword ? "text" : "password"}
                     id="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={handlePasswordChange}
                     className="pl-12 pr-12 py-3 w-full bg-white rounded-full border-2 border-[#f8f8f8] focus:outline-none focus:border-[#f8d7c7] text-gray-700"
                     placeholder="Enter your password..."
                   />
@@ -146,6 +209,40 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
                     <Eye className="h-5 w-5" />
                   </button>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="block text-lg font-medium text-[#4a3728]">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    id="confirmPassword"
+                    value={confirmPassword}
+                    onChange={handleConfirmPasswordChange}
+                    className="pl-12 pr-12 py-3 w-full bg-white rounded-full border-2 border-[#f8f8f8] focus:outline-none focus:border-[#f8d7c7] text-gray-700"
+                    placeholder="Confirm your password..."
+                  />
+                  <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#4a3728]">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleConfirmPasswordVisibility}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#4a3728]"
+                  >
+                    <Eye className="h-5 w-5" />
+                  </button>
+                </div>
+                {!passwordsMatch && confirmPassword.length > 0 && (
+                  <div className="mt-2 bg-[#f8d7c7] text-[#e67e51] px-4 py-2 rounded-full flex items-center">
+                    <div className="bg-[#e67e51] text-white rounded-full p-1 mr-2 flex items-center justify-center w-5 h-5">
+                      <span className="text-sm font-bold">!</span>
+                    </div>
+                    Passwords do not match!
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">
