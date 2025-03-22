@@ -11,6 +11,9 @@ interface SignInFormProps {
   onSwitchForm?: () => void
 }
 
+// Define API base URL with fallback
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
 export default function SignInForm({ onSwitchForm }: SignInFormProps) {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
@@ -19,6 +22,9 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
   const [isEmailInvalid, setIsEmailInvalid] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [isValidationSent, setIsValidationSent] = useState(false)
+  const [showValidationOption, setShowValidationOption] = useState(false)
 
   const togglePasswordVisibility = () => {
     setShowPassword(prev => !prev)
@@ -28,6 +34,61 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
     const value = e.target.value
     setEmail(value)
     setIsEmailInvalid(value.length > 0 && !value.includes("@"))
+  }
+
+  const sendVerificationEmail = async () => {
+    if (!email || email.trim() === "") {
+      setError("Please enter your email address first")
+      return
+    }
+    
+    // Clear any previous errors or messages
+    setIsLoading(true)
+    setError("")
+    console.log("Sending verification for email:", email) // Debug log
+    
+    try {
+      // Updated URL to the new resend verification endpoint
+      const response = await fetch(`${API_BASE_URL}/api/auth/resend-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+      
+      // Check if the response is JSON before parsing
+      const contentType = response.headers.get("content-type")
+      let data
+      
+      try {
+        if (contentType && contentType.includes("application/json")) {
+          data = await response.json()
+        } else {
+          // Handle non-JSON responses (like HTML error pages)
+          const text = await response.text()
+          console.error("Non-JSON response:", text.substring(0, 100) + "...") // Log first 100 chars
+          throw new Error("Server returned an invalid response format. Please try again later.")
+        }
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError)
+        // Try to recover with whatever we received
+        data = { message: "Could not process server response. Please try again." }
+      }
+      
+      if (response.ok) {
+        setError("")
+        setIsValidationSent(true)
+        // Success is shown by UI state change instead of alert
+      } else {
+        setError(data.message || "Failed to send verification email")
+      }
+    } catch (err) {
+      console.error("Error sending verification:", err)
+      setError(err instanceof Error ? err.message : "Failed to send verification email. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -47,7 +108,9 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
     setIsLoading(true)
     
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+      console.log(`Attempting to login with API URL: ${API_BASE_URL}/api/auth/login`)
+      
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,7 +121,22 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
       
       const data = await response.json()
       
+      // Log the response for debugging
+      console.log('Login response:', { status: response.status, data })
+      
       if (!response.ok) {
+        // Check both status code AND error message content for verification issues
+        if ((response.status === 403 && data.needsVerification) || 
+            (data.message && (
+              data.message.toLowerCase().includes('verif') || 
+              (data.message.toLowerCase().includes('email') && 
+               data.message.toLowerCase().includes('not'))
+            ))
+           ) {
+          console.log('Email verification needed, showing validation option')
+          setShowValidationOption(true)
+          throw new Error(data.message || "Your email address is not validated. Please verify your email before logging in.")
+        }
         throw new Error(data.message || "Failed to sign in")
       }
       
@@ -72,9 +150,19 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
         }
       }
       
-      // Redirect to dashboard or home page
-      router.push('/dashboard')
+      // Store user data for use in home page
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user))
+      }
+      
+      // Reset verification states
+      setNeedsVerification(false)
+      setShowValidationOption(false)
+      
+      // Redirect to home page
+      router.push('/home')
     } catch (err) {
+      console.error("Sign in error:", err)
       setError(err instanceof Error ? err.message : "An unexpected error occurred")
     } finally {
       setIsLoading(false)
@@ -91,7 +179,7 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
     setError("")
     
     try {
-      const backendResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
+      const backendResponse = await fetch(`${API_BASE_URL}/api/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -116,6 +204,11 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
         }
       }
       
+      // Store user data from Google login
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user))
+      }
+      
       // Redirect to the home page after successful Google login
       router.push('/home');
       
@@ -129,6 +222,68 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
 
   const handleGoogleLoginFailure = () => {
     setError("Google sign-in was unsuccessful. Please try again.")
+  }
+
+  // Show verification needed UI
+  if (needsVerification) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-[#f5f2ef]">
+        <div className="w-full max-w-lg p-8 bg-white rounded-2xl shadow-lg">
+          <div className="flex flex-col items-center text-center">
+            <Mail className="w-16 h-16 text-[#e67e51] mb-4" />
+            
+            <h1 className="text-2xl font-bold text-[#4a3728] mb-4">
+              Email Verification Required
+            </h1>
+            
+            <p className="text-[#4a3728] mb-6">
+              Your account exists but you need to verify your email address before logging in.
+              Please check your inbox for the verification link.
+            </p>
+            
+            <div className="flex flex-col space-y-4 w-full">
+              {isValidationSent ? (
+                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-md mb-4">
+                  <span className="block font-medium">Verification email sent!</span>
+                  <span className="block text-sm mt-1">Please check your inbox and click the link to verify your email.</span>
+                </div>
+              ) : null}
+              
+              <button
+                onClick={sendVerificationEmail}
+                disabled={isLoading || isValidationSent}
+                className="bg-[#4a3728] text-white py-3 px-6 rounded-full flex items-center justify-center space-x-2 hover:bg-[#3a2a1f] transition-colors disabled:opacity-50"
+              >
+                <span>{isLoading ? "Sending..." : isValidationSent ? "Email Sent Successfully" : "Send Verification Email"}</span>
+              </button>
+              
+                              <button
+                onClick={() => {
+                  setNeedsVerification(false)
+                  setIsValidationSent(false)
+                  // Keep the validation option visible when returning to login screen
+                  // Don't reset the email when going back
+                }}
+                className="text-[#e67e51] hover:underline font-medium"
+              >
+                Back to Sign In
+              </button>
+              
+              {/* Debug info */}
+              <div className="text-xs text-gray-500 mt-4">
+                Using email: {email || "not set"}
+              </div>
+            </div>
+            
+            {error && (
+              <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md">
+                {error}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -157,10 +312,29 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
 
             <h1 className="text-4xl font-bold text-center mb-8 text-[#4a3728]">Sign In To Mentarie</h1>
 
-            {/* Error Message Display */}
+            {/* Error Message Display with validation link based on error content */}
             {error && (
               <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
                 <span className="block sm:inline">{error}</span>
+                {(showValidationOption || 
+                  error.toLowerCase().includes('verif') || 
+                  (error.toLowerCase().includes('email') && 
+                   error.toLowerCase().includes('not'))
+                ) && (
+                  <button 
+                    onClick={() => {
+                      // Make sure email is valid before showing verification screen
+                      if (!email) {
+                        setError("Please enter your email address first");
+                        return;
+                      }
+                      setNeedsVerification(true);
+                    }}
+                    className="block mt-2 text-[#e67e51] hover:underline font-medium"
+                  >
+                    Click here to validate your email
+                  </button>
+                )}
               </div>
             )}
 
@@ -228,6 +402,8 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
                   </span>
                   {!isLoading && <ArrowRight className="h-5 w-5" />}
                 </button>
+
+                {/* No validation button here anymore - now it's only in the error message */}
 
                 {/* Divider */}
                 <div className="relative w-full flex items-center justify-center mt-4">

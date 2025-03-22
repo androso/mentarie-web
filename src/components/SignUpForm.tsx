@@ -4,7 +4,7 @@ import { Eye, Mail, Lock, Check, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
 // Use the same environment variable as your Google login
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
 
 interface SignUpFormProps {
   onSwitchForm?: () => void
@@ -22,6 +22,10 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
   const [isAgreed, setIsAgreed] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  
+  // New state for tracking registration success
+  const [isRegistered, setIsRegistered] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState("")
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)
@@ -50,12 +54,27 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Log form data for debugging
-    logFormData();
+    // Log non-sensitive form data for debugging
+    console.log("Form submission initiated for:", email);
 
     // Validate form fields before sending the request
-    if (!name || !email || !password || !confirmPassword || isEmailInvalid || !passwordsMatch || !isAgreed) {
-      setErrorMessage("Please fill out all fields correctly and agree to the terms.");
+    if (!name || !email || !password || !confirmPassword) {
+      setErrorMessage("Please fill out all required fields.");
+      return;
+    }
+    
+    if (isEmailInvalid) {
+      setErrorMessage("Please enter a valid email address.");
+      return;
+    }
+    
+    if (!passwordsMatch) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+    
+    if (!isAgreed) {
+      setErrorMessage("Please agree to the Terms & Conditions.");
       return;
     }
 
@@ -63,7 +82,6 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
     setErrorMessage("") // Clear any previous error messages
 
     try {
-      // Use the same URL pattern as your Google login
       console.log("Submitting registration to:", `${API_BASE_URL}/api/auth/register`);
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
@@ -90,27 +108,82 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
           setErrorMessage(`Server error (${response.status}): ${response.statusText}`);
         }
       } else {
-        // Handle successful sign-up (redirect or message)
+        // Handle successful sign-up
         const data = await response.json();
-        console.log("Success response:", data);
-        alert("Sign-up successful! Please verify your email to continue.");
+        console.log("Success response received");
+        
+        // Store the email for the success message and show verification screen
+        setRegisteredEmail(email);
+        setIsRegistered(true);
+        
+        // Reset form fields
         setName("");
         setEmail("");
         setPassword("");
         setConfirmPassword("");
+        setIsAgreed(false);
       }
     } catch (error) {
+      console.error("Network error:", error);
       setErrorMessage("Failed to connect to the server. Please try again later.")
     } finally {
       setIsLoading(false)
     }
   }
-
-  // Add additional logging for debugging
-  const logFormData = () => {
-    console.log("Form Data:", { name, email, password, confirmPassword });
-  };
   
+  // If registration was successful, show a verification message instead of the form
+  if (isRegistered) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-[#f5f2ef]">
+        <div className="w-full max-w-lg p-8 bg-white rounded-2xl shadow-lg">
+          <div className="flex flex-col items-center text-center">
+            <Mail className="w-16 h-16 text-[#4a3728] mb-4" />
+            
+            <h1 className="text-2xl font-bold text-[#4a3728] mb-4">
+              Verify Your Email Address
+            </h1>
+            
+            <p className="text-[#4a3728] mb-2">
+              We've sent a verification link to:
+            </p>
+            
+            <p className="text-[#e67e51] font-semibold mb-6">
+              {registeredEmail}
+            </p>
+            
+            <p className="text-[#4a3728] mb-6">
+              Please check your inbox and click the verification link to complete your registration.
+              The link will expire in 24 hours.
+            </p>
+            
+            <div className="flex flex-col space-y-4">
+              <button
+                onClick={() => setIsRegistered(false)}
+                className="bg-[#4a3728] text-white py-3 px-6 rounded-full flex items-center justify-center space-x-2 hover:bg-[#3a2a1f] transition-colors"
+              >
+                <span>Register Another Account</span>
+              </button>
+              
+              {onSwitchForm ? (
+                <button
+                  onClick={onSwitchForm}
+                  className="text-[#e67e51] hover:underline font-medium"
+                >
+                  Go to Sign In
+                </button>
+              ) : (
+                <Link href="/SignInForm" className="text-[#e67e51] hover:underline font-medium">
+                  Go to Sign In
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Original form UI for sign-up process
   return (
     <div className="flex justify-center items-center min-h-screen bg-[#f5f2ef]">
       <div className="w-full max-w-4xl flex shadow-2xl rounded-2xl overflow-hidden">
@@ -311,5 +384,5 @@ export default function SignUpForm({ onSwitchForm }: SignUpFormProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -6,7 +6,6 @@ import SignInForm from "@/components/SignUpForm"
 import { GoogleOAuthProvider } from "@react-oauth/google"
 
 export default function Home() {
-  // State to track which form to display
   const [showSignIn, setShowSignIn] = useState(false)
   
   // Toggle between sign in and sign up forms
