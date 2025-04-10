@@ -38,7 +38,7 @@ const LanguageLearningDashboard = () => {
 
       {/* Today's Lesson */}
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-2 text-gray-900">Today's Lesson</h2>
+        <h2 className="text-2xl font-bold mb-2 text-[#4e342e]">Today's Lesson</h2>
         <p className="text-gray-600">Continue your progress</p>
       </div>
 
@@ -58,7 +58,7 @@ const LanguageLearningDashboard = () => {
 
       {/* Unit Progress */}
       <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-8 text-gray-900">Unit Progress</h2>
+        <h2 className="text-2xl font-bold mb-8 text-[#4e342e]">Unit Progress</h2>
         
         <div className="flex flex-col items-center">
           <div className="relative">
@@ -100,13 +100,13 @@ const LanguageLearningDashboard = () => {
   // Simple placeholder content for other sections
   const renderCoursesContent = () => (
     <div className="max-w-4xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-6">My Courses</h1>
+      <h1 className="text-3xl font-bold mb-6 text-[#4e342e]">My Courses</h1>
       <p className="text-gray-600 mb-8">Browse and manage your enrolled courses.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[1, 2, 3, 4].map((course) => (
           <div key={course} className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-xl font-bold mb-2">Course {course}</h3>
+            <h3 className="text-xl font-bold mb-2 text-[#4e342e]">Course {course}</h3>
             <p className="text-gray-600 mb-4">Course description goes here. This would show information about the course.</p>
             <div className="flex justify-between items-center">
               <span className="text-sm bg-green-100 text-green-800 py-1 px-3 rounded-full">In Progress</span>
@@ -120,26 +120,26 @@ const LanguageLearningDashboard = () => {
   
   const renderStatsContent = () => (
     <div className="max-w-4xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-6">My Statistics</h1>
+      <h1 className="text-3xl font-bold mb-6 text-[#4e342e]">My Statistics</h1>
       <p className="text-gray-600 mb-8">Track your learning progress and achievements.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm">
-          <h3 className="text-lg font-medium text-gray-500 mb-1">Days Streak</h3>
+          <h3 className="text-lg font-medium text-[#4e342e] mb-1">Days Streak</h3>
           <p className="text-3xl font-bold text-[#4e342e]">14</p>
         </div>
         <div className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm">
-          <h3 className="text-lg font-medium text-gray-500 mb-1">Words Learned</h3>
+          <h3 className="text-lg font-medium text-[#4e342e] mb-1">Words Learned</h3>
           <p className="text-3xl font-bold text-[#4e342e]">238</p>
         </div>
         <div className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm">
-          <h3 className="text-lg font-medium text-gray-500 mb-1">Fluency Score</h3>
+          <h3 className="text-lg font-medium text-[#4e342e] mb-1">Fluency Score</h3>
           <p className="text-3xl font-bold text-[#4e342e]">67%</p>
         </div>
       </div>
       
       <div className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm">
-        <h3 className="text-xl font-bold mb-4">Weekly Activity</h3>
+        <h3 className="text-xl font-bold mb-4 text-[#4e342e]">Weekly Activity</h3>
         <div className="h-64 flex items-end justify-between">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
             <div key={day} className="flex flex-col items-center">
@@ -154,11 +154,11 @@ const LanguageLearningDashboard = () => {
   
   const renderAccountContent = () => (
     <div className="max-w-4xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-6">My Account</h1>
+      <h1 className="text-3xl font-bold mb-6 text-[#4e342e]">My Account</h1>
       <p className="text-gray-600 mb-8">Manage your profile and application settings.</p>
       
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm mb-8">
-        <h2 className="text-xl font-bold mb-4">Profile Information</h2>
+        <h2 className="text-xl font-bold mb-4 text-[#4e342e]">Profile Information</h2>
         <div className="flex items-start">
           <div className="w-24 h-24 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center mr-6">
             <img src="/api/placeholder/96/96" alt="Profile" className="object-cover" />
@@ -190,7 +190,7 @@ const LanguageLearningDashboard = () => {
       </div>
       
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-        <h2 className="text-xl font-bold mb-4">Subscription</h2>
+        <h2 className="text-xl font-bold mb-4 text-[#4e342e]">Subscription</h2>
         <div className="p-4 bg-green-50 border border-green-200 rounded-md mb-4">
           <div className="flex items-center">
             <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
