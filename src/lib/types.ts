@@ -99,3 +99,28 @@ export interface ConversationMessage {
     role: 'user' | 'assistant';
     content: string;
 }
+
+export type SelectUser = {
+        id: number;
+        username: string;
+        password: string;
+        fullName: string | null;
+        nativeLanguageId: number | null;
+        learningLanguageId: number | null;
+        languageLevel: string | null;
+        isProMember: boolean | null;
+        profileImage: string | null;
+}
+
+export type InsertUser = {
+    username: string;
+    password: string;
+    fullName?: string | null | undefined;
+    nativeLanguageId?: number | null | undefined;
+    learningLanguageId?: number | null | undefined;
+}
+
+export type LoginUser = {
+    username: string;
+    password: string;
+}
