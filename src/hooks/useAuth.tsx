@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { SelectUser, InsertUser, LoginUser } from "@/lib/types";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
-// import { useToast } from "@/hooks/use-toast";
+import toast from "react-hot-toast";
 
 type AuthContextType = {
   user: SelectUser | null;
@@ -20,7 +20,6 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { toast } = useToast();
   const {
     data: user,
     error,
@@ -37,17 +36,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
-      toast({
-        title: "Welcome back!",
-        description: `You've successfully logged in.`,
-      });
+      toast("welcome back")
+      // toast({
+      //   title: "Welcome back!",
+      //   description: `You've successfully logged in.`,
+      // });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("login failed", {
+      })
+      // toast({
+      //   title: "Login failed",
+      //   description: error.message,
+      //   variant: "destructive",
+      // });
     },
   });
 
@@ -58,17 +60,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
-      toast({
-        title: "Welcome to LinguaConverse!",
-        description: "Your account has been created successfully.",
-      });
+      toast("welcome to mentarie")
+      // toast({
+      //   title: "Welcome to LinguaConverse!",
+      //   description: "Your account has been created successfully.",
+      // });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast("registration failed")
+      // toast({
+      //   title: "Registration failed",
+      //   description: error.message,
+      //   variant: "destructive",
+      // });
     },
   });
 
@@ -79,20 +83,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: () => {
       queryClient.clear();
       queryClient.setQueryData(["/api/user"], null);
-      toast({
-        title: "Logged out",
-        description: "You've been successfully logged out.",
-      });
+      toast("logged out")
+      // toast({
+      //   title: "Logged out",
+      //   description: "You've been successfully logged out.",
+      // });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Logout failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast("logout failed")
+      // toast({
+      //   title: "Logout failed",
+      //   description: error.message,
+      //   variant: "destructive",
+      // });
     },
   });
-
+  
   return (
     <AuthContext.Provider
       value={{
