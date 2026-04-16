@@ -46,6 +46,7 @@ const openAiToolInstructions = [
   "Use set_target_language when user states their target language.",
   "Use set_language_pair when user provides both in one utterance.",
   "Do not guess languages. Use only english, french, or spanish.",
+  "Once both languages are confirmed by the user, call complete_onboarding to submit and finish setup.",
 ].join(" ");
 
 function getLanguageKey(language: LanguageOption): string {
@@ -260,13 +261,13 @@ function extractMentionedLanguageKeys(input: string): string[] {
   const text = input.toLowerCase();
   const keys: string[] = [];
 
-  if (/(^|\s)(english|en)(\s|$)/.test(text)) {
+  if (/(^|\s)(english)(\s|$)/.test(text)) {
     keys.push("english");
   }
-  if (/(^|\s)(french|francais|français|fr)(\s|$)/.test(text)) {
+  if (/(^|\s)(french|francais|français)(\s|$)/.test(text)) {
     keys.push("french");
   }
-  if (/(^|\s)(spanish|espanol|español|es)(\s|$)/.test(text)) {
+  if (/(^|\s)(spanish|espanol|español)(\s|$)/.test(text)) {
     keys.push("spanish");
   }
 
@@ -287,13 +288,20 @@ function extractSpokenLanguageSelection(input: string): SpokenLanguageSelection 
     /native\s+language\s*(?:is|=|:)?\s*([a-z\u00c0-\u017f\- ]+)/i,
     /i(?:'m| am)\s+(?:a\s+)?native\s+([a-z\u00c0-\u017f\- ]+)/i,
     /native\s*[:\-]\s*([a-z\u00c0-\u017f\- ]+)/i,
+    /my\s+(?:first|mother|native)\s+(?:tongue|language)\s+is\s+([a-z\u00c0-\u017f\- ]+)/i,
+    /([a-z\u00c0-\u017f\- ]+)\s+is\s+my\s+(?:first|mother|native)\s+(?:tongue|language)/i,
+    /i\s+speak\s+([a-z\u00c0-\u017f\- ]+)\s+(?:natively|as\s+my\s+(?:first|native|mother)\s+(?:tongue|language))/i,
+    /i\s+(?:grew\s+up|was\s+raised)\s+speaking\s+([a-z\u00c0-\u017f\- ]+)/i,
   ];
 
   const targetPatterns = [
     /target\s+language\s*(?:is|=|:)?\s*([a-z\u00c0-\u017f\- ]+)/i,
-    /i\s+want\s+to\s+learn\s+([a-z\u00c0-\u017f\- ]+)/i,
-    /learning\s+([a-z\u00c0-\u017f\- ]+)/i,
+    /i\s+want\s+to\s+(?:learn|speak|practice|study)\s+([a-z\u00c0-\u017f\- ]+)/i,
+    /(?:learning|studying|practicing)\s+([a-z\u00c0-\u017f\- ]+)/i,
     /target\s*[:\-]\s*([a-z\u00c0-\u017f\- ]+)/i,
+    /i(?:'d| would)\s+like\s+to\s+(?:learn|speak|practice)\s+([a-z\u00c0-\u017f\- ]+)/i,
+    /help\s+(?:me\s+)?(?:learn|with|practice)\s+([a-z\u00c0-\u017f\- ]+)/i,
+    /i(?:'m| am)\s+(?:trying\s+to\s+learn|working\s+on)\s+([a-z\u00c0-\u017f\- ]+)/i,
   ];
 
   const nativeMatch = nativePatterns
@@ -332,9 +340,6 @@ function VoiceOnboardingPanel({
   const [isMuted, setIsMuted] = useState(false);
   const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
   const [transcript, setTranscript] = useState<Array<{ id: string; role: "assistant" | "user"; text: string }>>([]);
-  const [lastUserTranscript, setLastUserTranscript] = useState("");
-
-  const lastHandledUtteranceRef = useRef<string>("");
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const localAudioTrackRef = useRef<MediaStreamTrack | null>(null);
@@ -342,6 +347,7 @@ function VoiceOnboardingPanel({
   const nativeLanguageIdRef = useRef(nativeLanguageId);
   const targetLanguageIdRef = useRef(targetLanguageId);
   const isMutedRef = useRef(isMuted);
+  const handleRealtimeEventRef = useRef<(event: MessageEvent) => void>(() => {});
 
   useEffect(() => {
     nativeLanguageIdRef.current = nativeLanguageId;
@@ -466,15 +472,12 @@ function VoiceOnboardingPanel({
     }
 
     const eventType = String(event.type ?? "");
+    console.log("[Realtime]", eventType, event);
 
     if (eventType === "conversation.item.input_audio_transcription.completed") {
       const itemId = String(event.item_id ?? `user-${Date.now()}`);
       const transcriptText = String(event.transcript ?? "").trim() || "[inaudible]";
       upsertTranscriptEntry(itemId, "user", transcriptText, false);
-
-      if (transcriptText !== "[inaudible]") {
-        setLastUserTranscript(transcriptText);
-      }
       return;
     }
 
@@ -506,6 +509,7 @@ function VoiceOnboardingPanel({
         parsedArgs = {};
       }
 
+      console.log("[Tool call]", functionName, parsedArgs, "languageByKey keys:", [...languageByKey.keys()]);
       let result: Record<string, unknown> | null = null;
 
       if (functionName === "set_native_language") {
@@ -522,6 +526,19 @@ function VoiceOnboardingPanel({
           targetLanguageKey: parsedArgs.target_language,
         });
       }
+
+      if (functionName === "complete_onboarding") {
+        const hasNative = Boolean(nativeLanguageIdRef.current);
+        const hasTarget = Boolean(targetLanguageIdRef.current);
+        if (!hasNative || !hasTarget) {
+          result = { success: false, message: "Cannot complete: both native and target languages must be set first." };
+        } else {
+          void onSubmit();
+          result = { success: true, message: "Onboarding submitted." };
+        }
+      }
+
+      console.log("[Tool result]", result);
 
       if (result && callId && dataChannelRef.current?.readyState === "open") {
         dataChannelRef.current.send(
@@ -549,94 +566,15 @@ function VoiceOnboardingPanel({
     }
   };
 
+  // Always keep the ref pointing at the latest version of the handler so the
+  // WebRTC data channel listener (registered once) never has a stale closure.
+  handleRealtimeEventRef.current = handleRealtimeEvent;
+
   useEffect(() => {
     return () => {
       disconnectSession();
     };
   }, []);
-
-  useEffect(() => {
-    const content = lastUserTranscript;
-    if (!content) {
-      return;
-    }
-
-    const normalizedContent = content.trim().toLowerCase();
-    if (!normalizedContent || normalizedContent === lastHandledUtteranceRef.current) {
-      return;
-    }
-
-    lastHandledUtteranceRef.current = normalizedContent;
-
-    const { nativeKey: spokenNativeKey, targetKey: spokenTargetKey, mentionedKeys } = extractSpokenLanguageSelection(content);
-    if (!spokenNativeKey && !spokenTargetKey && mentionedKeys.length === 0) {
-      return;
-    }
-
-    let nativeKeyToApply = spokenNativeKey;
-    let targetKeyToApply = spokenTargetKey;
-
-    // Fallback for short utterances such as "Spanish and English".
-    if (!nativeKeyToApply && !targetKeyToApply && mentionedKeys.length >= 2) {
-      [nativeKeyToApply, targetKeyToApply] = mentionedKeys;
-    }
-
-    if (!nativeKeyToApply && !targetKeyToApply && mentionedKeys.length === 1) {
-      if (normalizedContent.includes("native")) {
-        nativeKeyToApply = mentionedKeys[0];
-      } else if (normalizedContent.includes("target") || normalizedContent.includes("learn")) {
-        targetKeyToApply = mentionedKeys[0];
-      }
-    }
-
-    if (nativeKeyToApply) {
-      const nativeCandidate = languageByKey.get(nativeKeyToApply);
-      if (nativeCandidate) {
-        const nextNativeId = String(nativeCandidate.id);
-        if (nextNativeId !== nativeLanguageId) {
-          setNativeLanguageId(nextNativeId);
-        }
-      }
-    }
-
-    const effectiveNativeKey = nativeKeyToApply
-      ?? (nativeLanguageId
-        ? getLanguageKey(
-          supportedLanguages.find((language) => String(language.id) === nativeLanguageId)
-          ?? ({ code: "", name: "" } as LanguageOption)
-        )
-        : undefined);
-
-    if (!targetKeyToApply && mentionedKeys.length > 0) {
-      const fallbackTarget = mentionedKeys.find((key) => key !== nativeKeyToApply);
-      if (fallbackTarget) {
-        targetKeyToApply = fallbackTarget;
-      }
-    }
-
-    if (!targetKeyToApply) {
-      return;
-    }
-
-    const targetCandidate = languageByKey.get(targetKeyToApply);
-    if (!targetCandidate) {
-      return;
-    }
-
-    if (effectiveNativeKey) {
-      const allowedForNative = allowedTargetsByNative[effectiveNativeKey] ?? [];
-      if (!allowedForNative.includes(targetKeyToApply)) {
-        setError("That target language is not available for your selected native language yet.");
-        return;
-      }
-    }
-
-    const nextTargetId = String(targetCandidate.id);
-    if (nextTargetId !== targetLanguageId) {
-      setError("");
-      setTargetLanguageId(nextTargetId);
-    }
-  }, [lastUserTranscript, nativeLanguageId, targetLanguageId, languageByKey, setNativeLanguageId, setTargetLanguageId, setError, supportedLanguages]);
 
   useEffect(() => {
     if (localAudioTrackRef.current) {
@@ -688,7 +626,7 @@ function VoiceOnboardingPanel({
         localAudioTrackRef.current.enabled = !isMuted && !isAssistantSpeaking;
       }
 
-      dataChannel.addEventListener("message", handleRealtimeEvent);
+      dataChannel.addEventListener("message", (e) => handleRealtimeEventRef.current(e));
 
       dataChannel.addEventListener("open", () => {
         setSessionStatus("connected");
@@ -757,6 +695,17 @@ function VoiceOnboardingPanel({
                       },
                     },
                     required: ["native_language", "target_language"],
+                    additionalProperties: false,
+                  },
+                },
+                {
+                  type: "function",
+                  name: "complete_onboarding",
+                  description: "Submit the onboarding form and finish setup. Call this only after both native and target languages have been confirmed by the user.",
+                  parameters: {
+                    type: "object",
+                    properties: {},
+                    required: [],
                     additionalProperties: false,
                   },
                 },
@@ -1035,10 +984,15 @@ function HumeVoiceOnboardingPanel({
     }
 
     if (!nativeKeyToApply && !targetKeyToApply && mentionedKeys.length === 1) {
-      if (normalizedContent.includes("native")) {
-        nativeKeyToApply = mentionedKeys[0];
-      } else if (normalizedContent.includes("target") || normalizedContent.includes("learn")) {
-        targetKeyToApply = mentionedKeys[0];
+      const singleKey = mentionedKeys[0];
+      if (normalizedContent.includes("native") || normalizedContent.includes("speak") || normalizedContent.includes("from")) {
+        nativeKeyToApply = singleKey;
+      } else if (normalizedContent.includes("target") || normalizedContent.includes("learn") || normalizedContent.includes("study") || normalizedContent.includes("practice")) {
+        targetKeyToApply = singleKey;
+      } else if (!nativeLanguageId) {
+        nativeKeyToApply = singleKey;
+      } else {
+        targetKeyToApply = singleKey;
       }
     }
 
