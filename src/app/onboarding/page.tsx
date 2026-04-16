@@ -347,6 +347,7 @@ function VoiceOnboardingPanel({
   const nativeLanguageIdRef = useRef(nativeLanguageId);
   const targetLanguageIdRef = useRef(targetLanguageId);
   const isMutedRef = useRef(isMuted);
+  const pendingCompleteRef = useRef(false);
   const handleRealtimeEventRef = useRef<(event: MessageEvent) => void>(() => {});
 
   useEffect(() => {
@@ -494,6 +495,10 @@ function VoiceOnboardingPanel({
       if (localAudioTrackRef.current) {
         localAudioTrackRef.current.enabled = !isMutedRef.current;
       }
+      if (pendingCompleteRef.current) {
+        pendingCompleteRef.current = false;
+        void onSubmit();
+      }
       return;
     }
 
@@ -533,8 +538,8 @@ function VoiceOnboardingPanel({
         if (!hasNative || !hasTarget) {
           result = { success: false, message: "Cannot complete: both native and target languages must be set first." };
         } else {
-          void onSubmit();
-          result = { success: true, message: "Onboarding submitted." };
+          pendingCompleteRef.current = true;
+          result = { success: true, message: "Onboarding will be submitted once you finish speaking." };
         }
       }
 
