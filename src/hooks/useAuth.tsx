@@ -8,34 +8,59 @@ import { SelectUser, InsertUser, LoginUser } from "@/lib/types";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import toast from "react-hot-toast";
 
+type LoginResponse = {
+  token: {
+    accessTk: string;
+    refreshTk: string;
+  };
+  user: SelectUser;
+};
+
+type RegisterResponse = {
+  success: boolean;
+  message: string;
+};
+
+type CurrentUserResponse = {
+  user: SelectUser;
+};
+
 type AuthContextType = {
   user: SelectUser | null;
   isLoading: boolean;
   error: Error | null;
-  loginMutation: UseMutationResult<SelectUser, Error, LoginUser>;
+  loginMutation: UseMutationResult<LoginResponse, Error, LoginUser>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
+  registerMutation: UseMutationResult<RegisterResponse, Error, InsertUser>;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const currentUserQueryFn = getQueryFn<CurrentUserResponse | null>({
+    on401: "returnNull",
+  });
+
   const {
     data: user,
     error,
     isLoading,
-  } = useQuery<SelectUser | null, Error>({
-    queryKey: ["/api/user"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+  } = useQuery<CurrentUserResponse | null, Error, SelectUser | null>({
+    queryKey: ["/api/user/"],
+    queryFn: currentUserQueryFn,
+    select: (data) => data?.user ?? null,
   });
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginUser) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      const res = await apiRequest("POST", "/api/auth/login", credentials);
+      return (await res.json()) as LoginResponse;
     },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: (response: LoginResponse) => {
+      localStorage.setItem("accessToken", response.token.accessTk);
+      localStorage.setItem("refreshToken", response.token.refreshTk);
+
+      queryClient.setQueryData(["/api/user/"], { user: response.user });
       toast("welcome back")
       // toast({
       //   title: "Welcome back!",
@@ -55,11 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerMutation = useMutation({
     mutationFn: async (credentials: InsertUser) => {
-      const res = await apiRequest("POST", "/api/register", credentials);
-      return await res.json();
+      const res = await apiRequest("POST", "/api/auth/register", credentials);
+      return (await res.json()) as RegisterResponse;
     },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: () => {
       toast("welcome to mentarie")
       // toast({
       //   title: "Welcome to LinguaConverse!",
@@ -78,11 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
     },
     onSuccess: () => {
       queryClient.clear();
-      queryClient.setQueryData(["/api/user"], null);
+      queryClient.setQueryData(["/api/user/"], null);
       toast("logged out")
       // toast({
       //   title: "Logged out",

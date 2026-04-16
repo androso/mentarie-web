@@ -101,26 +101,22 @@ export interface ConversationMessage {
 }
 
 export type SelectUser = {
-        id: number;
-        username: string;
-        password: string;
-        fullName: string | null;
-        nativeLanguageId: number | null;
-        learningLanguageId: number | null;
-        languageLevel: string | null;
-        isProMember: boolean | null;
-        profileImage: string | null;
+    id: string;
+    email: string;
+    name: string;
+    image: string | null;
+    googleId: string | null;
+    createdAt: string;
+    isActive: boolean;
 }
 
 export type InsertUser = {
-    username: string;
+    email: string;
     password: string;
-    fullName?: string | null | undefined;
-    nativeLanguageId?: number | null | undefined;
-    learningLanguageId?: number | null | undefined;
+    name: string;
 }
 
 export type LoginUser = {
-    username: string;
+    email: string;
     password: string;
 }

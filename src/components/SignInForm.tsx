@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Eye, Mail, Lock, ArrowRight } from "lucide-react"
 import Link from "next/link"
-import { GoogleLogin, CredentialResponse } from "@react-oauth/google"
 import { useRouter } from "next/navigation"
 
 // Define the props interface outside of the component
@@ -169,59 +168,28 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
     }
   }
 
-  const handleGoogleLoginSuccess = async (response: CredentialResponse) => {
-    if (!response.credential) {
-      setError("Google authentication failed")
-      return
-    }
-    
+  const handleGoogleSignIn = async () => {
     setIsLoading(true)
     setError("")
-    
+
     try {
-      const backendResponse = await fetch(`${API_BASE_URL}/api/auth/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ token: response.credential }),
+      const response = await fetch("/api/auth/google/url", {
+        method: "GET",
+        credentials: "include",
       })
-      
-      const data = await backendResponse.json()
-      
-      if (!backendResponse.ok) {
-        throw new Error(data.message || "Google authentication failed")
+
+      const data = await response.json()
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.message || "Failed to start Google sign-in")
       }
-      
-      // Store tokens properly - using the format from your backend
-      if (data.token) {
-        if (data.token.accessTk) {
-          localStorage.setItem('accessToken', data.token.accessTk)
-        }
-        if (data.token.refreshTk) {
-          localStorage.setItem('refreshToken', data.token.refreshTk)
-        }
-      }
-      
-      // Store user data from Google login
-      if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user))
-      }
-      
-      // Redirect to the home page after successful Google login
-      router.push('/home');
-      
+
+      window.location.href = data.url
     } catch (err) {
-      console.error('Google login error:', err)
-      setError(err instanceof Error ? err.message : "Failed to authenticate with Google")
-    } finally {
+      console.error("Google sign-in start error:", err)
+      setError(err instanceof Error ? err.message : "Failed to start Google sign-in")
       setIsLoading(false)
     }
-  }
-
-  const handleGoogleLoginFailure = () => {
-    setError("Google sign-in was unsuccessful. Please try again.")
   }
 
   // Show verification needed UI
@@ -413,15 +381,14 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
 
                 {/* Google Login Button */}
                 <div className="w-full flex justify-center mt-2">
-                  <GoogleLogin
-                    onSuccess={handleGoogleLoginSuccess}
-                    onError={handleGoogleLoginFailure}
-                    useOneTap
-                    shape="pill"
-                    text="signin_with"
-                    theme="outline"
-                    width="100%"
-                  />
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isLoading}
+                    className="w-full bg-white text-[#4a3728] py-3 rounded-full border border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Continue with Google
+                  </button>
                 </div>
               </div>
 
