@@ -3,11 +3,17 @@
 import React, { useEffect, useState } from 'react';
 import { Home, Book, BarChart2, User, LogOut, Circle, AlertCircle, FileText, MessageSquare } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 
 const LanguageLearningDashboard = () => {
   const [activeSection, setActiveSection] = useState('learn');
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, isLoading, logoutMutation } = useAuth();
+
+  const displayName = user?.name || 'Learner';
+  const firstName = displayName.trim().split(/\s+/)[0] || 'Learner';
+  const profileImage = user?.image || '/api/placeholder/56/56';
 
   useEffect(() => {
     const accessToken = searchParams.get('accessToken');
@@ -32,6 +38,26 @@ const LanguageLearningDashboard = () => {
     const query = nextParams.toString();
     router.replace(query ? `/home?${query}` : '/home');
   }, [router, searchParams]);
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push('/');
+    }
+  }, [isLoading, user, router]);
+
+  const handleSignOut = () => {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => router.push('/'),
+    });
+  };
+
+  if (isLoading) {
+    return <div className="bg-gray-100 min-h-screen" />;
+  }
+
+  if (!user) {
+    return null;
+  }
   
   // Content for Learn section (default)
   const renderLearnContent = () => (
@@ -39,10 +65,10 @@ const LanguageLearningDashboard = () => {
       {/* User Header */}
       <div className="flex items-center mb-10">
         <div className="w-14 h-14 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center mr-4">
-          <img src="/api/placeholder/56/56" alt="Profile" className="object-cover" />
+          <img src={profileImage} alt="Profile" className="object-cover" />
         </div>
         <div>
-          <h1 className="text-xl font-bold">Hi, rosmeo!</h1>
+          <h1 className="text-xl font-bold">Hi, {firstName}!</h1>
           <div className="flex items-center space-x-4 mt-1">
             <div className="h-6 w-10 flex items-center justify-center">
               <span>🇺🇸</span>
@@ -188,17 +214,17 @@ const LanguageLearningDashboard = () => {
         <h2 className="text-xl font-bold mb-4 text-[#4e342e]">Profile Information</h2>
         <div className="flex items-start">
           <div className="w-24 h-24 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center mr-6">
-            <img src="/api/placeholder/96/96" alt="Profile" className="object-cover" />
+            <img src={profileImage} alt="Profile" className="object-cover" />
           </div>
           <div className="flex-1">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input type="text" value="Rosmeo" className="w-full p-2 border border-gray-300 rounded-md" readOnly />
+                <input type="text" value={displayName} className="w-full p-2 border border-gray-300 rounded-md" readOnly />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" value="rosmeo@example.com" className="w-full p-2 border border-gray-300 rounded-md" readOnly />
+                <input type="email" value={user.email} className="w-full p-2 border border-gray-300 rounded-md" readOnly />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
@@ -282,6 +308,10 @@ const LanguageLearningDashboard = () => {
             <a 
               href="#" 
               className="flex items-center px-5 py-4 text-[#4e342e] hover:bg-gray-100 gap-2.5 border-t border-gray-200"
+              onClick={(event) => {
+                event.preventDefault();
+                handleSignOut();
+              }}
             >
               <LogOut className="h-5 w-5" />
               Sign Out
