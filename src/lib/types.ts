@@ -110,6 +110,21 @@ export type SelectUser = {
     isActive: boolean;
 }
 
+export type UserLevel = "a1" | "a2" | "b1" | "b2" | "c1" | "c2";
+
+export type UserLearningLanguage = {
+    languageId: number;
+    level: UserLevel;
+    code: string;
+    name: string;
+    flagUrl: string | null;
+}
+
+export type CurrentUserResponse = {
+    user: SelectUser;
+    learningLanguages: UserLearningLanguage[];
+}
+
 export type InsertUser = {
     email: string;
     password: string;

@@ -9,11 +9,20 @@ const LanguageLearningDashboard = () => {
   const [activeSection, setActiveSection] = useState('learn');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoading, logoutMutation } = useAuth();
+  const { user, learningLanguages, isLoading, logoutMutation } = useAuth();
 
   const displayName = user?.name || 'Learner';
   const firstName = displayName.trim().split(/\s+/)[0] || 'Learner';
   const profileImage = user?.image || '/api/placeholder/56/56';
+  const primaryLearningLanguage = learningLanguages[0];
+  const primaryLanguageName = primaryLearningLanguage?.name || 'Not set';
+  const primaryLanguageLevel = primaryLearningLanguage?.level.toUpperCase() || 'Not set';
+  const learningLanguageSummary =
+    learningLanguages.length > 0
+      ? learningLanguages
+          .map((lang) => `${lang.name} (${lang.level.toUpperCase()})`)
+          .join(', ')
+      : 'No learning languages selected yet';
 
   useEffect(() => {
     const accessToken = searchParams.get('accessToken');
@@ -83,7 +92,7 @@ const LanguageLearningDashboard = () => {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
               </svg>
-              A2
+              {primaryLanguageLevel}
             </div>
           </div>
         </div>
@@ -228,12 +237,18 @@ const LanguageLearningDashboard = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
-                <input type="text" value="English" className="w-full p-2 border border-gray-300 rounded-md" readOnly />
+                <input type="text" value={primaryLanguageName} className="w-full p-2 border border-gray-300 rounded-md" readOnly />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Proficiency Level</label>
-                <input type="text" value="A2" className="w-full p-2 border border-gray-300 rounded-md" readOnly />
+                <input type="text" value={primaryLanguageLevel} className="w-full p-2 border border-gray-300 rounded-md" readOnly />
               </div>
+            </div>
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Learning Languages</label>
+              <p className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+                {learningLanguageSummary}
+              </p>
             </div>
             <button className="mt-4 bg-[#4e342e] text-white py-2 px-4 rounded-md hover:bg-[#6d4c41]">
               Edit Profile

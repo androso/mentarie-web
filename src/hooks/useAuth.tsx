@@ -4,7 +4,13 @@ import {
   useMutation,
   UseMutationResult,
 } from "@tanstack/react-query";
-import { SelectUser, InsertUser, LoginUser } from "@/lib/types";
+import {
+  SelectUser,
+  InsertUser,
+  LoginUser,
+  CurrentUserResponse,
+  UserLearningLanguage,
+} from "@/lib/types";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import toast from "react-hot-toast";
 
@@ -21,12 +27,9 @@ type RegisterResponse = {
   message: string;
 };
 
-type CurrentUserResponse = {
-  user: SelectUser;
-};
-
 type AuthContextType = {
   user: SelectUser | null;
+  learningLanguages: UserLearningLanguage[];
   isLoading: boolean;
   error: Error | null;
   loginMutation: UseMutationResult<LoginResponse, Error, LoginUser>;
@@ -42,13 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const {
-    data: user,
+    data: currentUser,
     error,
     isLoading,
-  } = useQuery<CurrentUserResponse | null, Error, SelectUser | null>({
+  } = useQuery<CurrentUserResponse | null>({
     queryKey: ["/api/user/"],
     queryFn: currentUserQueryFn,
-    select: (data) => data?.user ?? null,
   });
 
   const loginMutation = useMutation({
@@ -60,7 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("accessToken", response.token.accessTk);
       localStorage.setItem("refreshToken", response.token.refreshTk);
 
-      queryClient.setQueryData(["/api/user/"], { user: response.user });
+      queryClient.setQueryData(["/api/user/"], {
+        user: response.user,
+        learningLanguages: [],
+      });
       toast("welcome back")
       // toast({
       //   title: "Welcome back!",
@@ -127,7 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user: user ?? null,
+        user: currentUser?.user ?? null,
+        learningLanguages: currentUser?.learningLanguages ?? [],
         isLoading,
         error,
         loginMutation,
