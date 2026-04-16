@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { VoiceProvider, useVoice } from "@humeai/voice-react";
@@ -240,6 +240,46 @@ function extractMentionedLanguageKeys(input: string): string[] {
   return Array.from(new Set(keys));
 }
 
+type SpokenLanguageSelection = {
+  nativeKey?: string;
+  targetKey?: string;
+  mentionedKeys: string[];
+};
+
+function extractSpokenLanguageSelection(input: string): SpokenLanguageSelection {
+  const text = input.toLowerCase();
+  const mentionedKeys = extractMentionedLanguageKeys(input);
+
+  const nativePatterns = [
+    /native\s+language\s*(?:is|=|:)?\s*([a-z\u00c0-\u017f\- ]+)/i,
+    /i(?:'m| am)\s+(?:a\s+)?native\s+([a-z\u00c0-\u017f\- ]+)/i,
+    /native\s*[:\-]\s*([a-z\u00c0-\u017f\- ]+)/i,
+  ];
+
+  const targetPatterns = [
+    /target\s+language\s*(?:is|=|:)?\s*([a-z\u00c0-\u017f\- ]+)/i,
+    /i\s+want\s+to\s+learn\s+([a-z\u00c0-\u017f\- ]+)/i,
+    /learning\s+([a-z\u00c0-\u017f\- ]+)/i,
+    /target\s*[:\-]\s*([a-z\u00c0-\u017f\- ]+)/i,
+  ];
+
+  const nativeMatch = nativePatterns
+    .map((pattern) => text.match(pattern))
+    .find((match) => Boolean(match?.[1]));
+  const targetMatch = targetPatterns
+    .map((pattern) => text.match(pattern))
+    .find((match) => Boolean(match?.[1]));
+
+  const nativeKey = nativeMatch ? extractMentionedLanguageKeys(nativeMatch[1])[0] : undefined;
+  const targetKey = targetMatch ? extractMentionedLanguageKeys(targetMatch[1])[0] : undefined;
+
+  return {
+    nativeKey,
+    targetKey,
+    mentionedKeys,
+  };
+}
+
 function VoiceOnboardingPanel({
   supportedLanguages,
   targetLanguageOptions,
@@ -267,6 +307,7 @@ function VoiceOnboardingPanel({
 
   const [voiceError, setVoiceError] = useState("");
   const [isConnectingVoice, setIsConnectingVoice] = useState(false);
+  const lastHandledUtteranceRef = useRef<string>("");
 
   const languageByKey = useMemo(() => {
     const map = new Map<string, LanguageOption>();
@@ -307,34 +348,82 @@ function VoiceOnboardingPanel({
       return;
     }
 
-    const keys = extractMentionedLanguageKeys(content);
-    if (keys.length === 0) {
+    const normalizedContent = content.trim().toLowerCase();
+    if (!normalizedContent || normalizedContent === lastHandledUtteranceRef.current) {
       return;
     }
 
-    if (!nativeLanguageId) {
-      const nativeCandidate = languageByKey.get(keys[0]);
-      if (nativeCandidate) {
-        setNativeLanguageId(String(nativeCandidate.id));
+    lastHandledUtteranceRef.current = normalizedContent;
+
+    const { nativeKey: spokenNativeKey, targetKey: spokenTargetKey, mentionedKeys } = extractSpokenLanguageSelection(content);
+    if (!spokenNativeKey && !spokenTargetKey && mentionedKeys.length === 0) {
+      return;
+    }
+
+    let nativeKeyToApply = spokenNativeKey;
+    let targetKeyToApply = spokenTargetKey;
+
+    // Fallback for short utterances such as "Spanish and English".
+    if (!nativeKeyToApply && !targetKeyToApply && mentionedKeys.length >= 2) {
+      [nativeKeyToApply, targetKeyToApply] = mentionedKeys;
+    }
+
+    if (!nativeKeyToApply && !targetKeyToApply && mentionedKeys.length === 1) {
+      if (normalizedContent.includes("native")) {
+        nativeKeyToApply = mentionedKeys[0];
+      } else if (normalizedContent.includes("target") || normalizedContent.includes("learn")) {
+        targetKeyToApply = mentionedKeys[0];
       }
     }
 
-    const effectiveNativeId = nativeLanguageId || String(languageByKey.get(keys[0])?.id ?? "");
-    const effectiveNative = supportedLanguages.find((language) => String(language.id) === effectiveNativeId);
-    const effectiveAllowedTargets = effectiveNative
-      ? allowedTargetsByNative[getLanguageKey(effectiveNative)] ?? []
-      : [];
-
-    if (!targetLanguageId && effectiveAllowedTargets.length > 0) {
-      const targetKey = keys.find((key) => effectiveAllowedTargets.includes(key));
-      if (targetKey) {
-        const targetCandidate = languageByKey.get(targetKey);
-        if (targetCandidate) {
-          setTargetLanguageId(String(targetCandidate.id));
+    if (nativeKeyToApply) {
+      const nativeCandidate = languageByKey.get(nativeKeyToApply);
+      if (nativeCandidate) {
+        const nextNativeId = String(nativeCandidate.id);
+        if (nextNativeId !== nativeLanguageId) {
+          setNativeLanguageId(nextNativeId);
         }
       }
     }
-  }, [lastUserMessage, nativeLanguageId, targetLanguageId, languageByKey, setNativeLanguageId, setTargetLanguageId, supportedLanguages]);
+
+    const effectiveNativeKey = nativeKeyToApply
+      ?? (nativeLanguageId
+        ? getLanguageKey(
+          supportedLanguages.find((language) => String(language.id) === nativeLanguageId)
+          ?? ({ code: "", name: "" } as LanguageOption)
+        )
+        : undefined);
+
+    if (!targetKeyToApply && mentionedKeys.length > 0) {
+      const fallbackTarget = mentionedKeys.find((key) => key !== nativeKeyToApply);
+      if (fallbackTarget) {
+        targetKeyToApply = fallbackTarget;
+      }
+    }
+
+    if (!targetKeyToApply) {
+      return;
+    }
+
+    const targetCandidate = languageByKey.get(targetKeyToApply);
+    if (!targetCandidate) {
+      return;
+    }
+
+    if (effectiveNativeKey) {
+      const allowedForNative = allowedTargetsByNative[effectiveNativeKey] ?? [];
+      if (!allowedForNative.includes(targetKeyToApply)) {
+        setError("That target language is not available for your selected native language yet.");
+        return;
+      }
+    }
+
+    const nextTargetId = String(targetCandidate.id);
+    if (nextTargetId !== targetLanguageId) {
+      setError("");
+      setTargetLanguageId(nextTargetId);
+    }
+  }, [lastUserMessage, nativeLanguageId, targetLanguageId, languageByKey, setNativeLanguageId, setTargetLanguageId, setError, supportedLanguages]);
 
   const startVoiceOnboarding = async () => {
     setVoiceError("");
