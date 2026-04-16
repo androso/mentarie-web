@@ -11,7 +11,7 @@ interface SignInFormProps {
 }
 
 // Define API base URL with fallback
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export default function SignInForm({ onSwitchForm }: SignInFormProps) {
   const router = useRouter()
@@ -178,7 +178,15 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
         credentials: "include",
       })
 
-      const data = await response.json()
+      const contentType = response.headers.get("content-type")
+      let data: { url?: string; message?: string } = {}
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json()
+      } else {
+        const text = await response.text()
+        data.message = text || "Server returned an invalid response format"
+      }
 
       if (!response.ok || !data.url) {
         throw new Error(data.message || "Failed to start Google sign-in")

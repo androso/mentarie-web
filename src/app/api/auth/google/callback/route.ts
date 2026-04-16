@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const backendApiUrl =
+  process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
 type GoogleCallbackResponse = {
   token?: {
     accessTk?: string;
@@ -16,7 +19,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/?error=oauth_missing_params", request.url));
   }
 
-  const backendUrl = new URL("http://localhost:3000/api/auth/google/callback");
+  const backendUrl = new URL(`${backendApiUrl}/api/auth/google/callback`);
   backendUrl.searchParams.set("code", code);
   backendUrl.searchParams.set("state", state);
 
