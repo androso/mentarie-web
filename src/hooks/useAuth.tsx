@@ -10,6 +10,7 @@ import {
   LoginUser,
   CurrentUserResponse,
   UserLearningLanguage,
+  LanguageOption,
 } from "@/lib/types";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import toast from "react-hot-toast";
@@ -30,6 +31,7 @@ type RegisterResponse = {
 type AuthContextType = {
   user: SelectUser | null;
   learningLanguages: UserLearningLanguage[];
+  nativeLanguage: LanguageOption | null;
   isLoading: boolean;
   error: Error | null;
   loginMutation: UseMutationResult<LoginResponse, Error, LoginUser>;
@@ -51,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery<CurrentUserResponse | null>({
     queryKey: ["/api/user/"],
     queryFn: currentUserQueryFn,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const loginMutation = useMutation({
@@ -65,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/user/"], {
         user: response.user,
         learningLanguages: [],
+        nativeLanguage: null,
       });
       toast("welcome back")
       // toast({
@@ -134,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user: currentUser?.user ?? null,
         learningLanguages: currentUser?.learningLanguages ?? [],
+        nativeLanguage: currentUser?.nativeLanguage ?? null,
         isLoading,
         error,
         loginMutation,

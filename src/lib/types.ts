@@ -104,6 +104,7 @@ export type SelectUser = {
     id: string;
     email: string;
     name: string;
+    nativeLanguageId: number | null;
     image: string | null;
     googleId: string | null;
     createdAt: string;
@@ -120,9 +121,17 @@ export type UserLearningLanguage = {
     flagUrl: string | null;
 }
 
+export type LanguageOption = {
+    id: number;
+    code: string;
+    name: string;
+    flagUrl: string | null;
+}
+
 export type CurrentUserResponse = {
     user: SelectUser;
     learningLanguages: UserLearningLanguage[];
+    nativeLanguage: LanguageOption | null;
 }
 
 export type InsertUser = {

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Eye, Mail, Lock, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { queryClient } from "@/lib/queryClient"
 
 // Define the props interface outside of the component
 interface SignInFormProps {
@@ -153,6 +154,8 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
       if (data.user) {
         localStorage.setItem('user', JSON.stringify(data.user))
       }
+
+      await queryClient.invalidateQueries({ queryKey: ['/api/user/'] })
       
       // Reset verification states
       setNeedsVerification(false)

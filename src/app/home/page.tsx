@@ -4,12 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { Home, Book, BarChart2, User, LogOut, Circle, AlertCircle, FileText, MessageSquare } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { queryClient } from '@/lib/queryClient';
 
 const LanguageLearningDashboard = () => {
   const [activeSection, setActiveSection] = useState('learn');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, learningLanguages, isLoading, logoutMutation } = useAuth();
+  const { user, nativeLanguage, learningLanguages, isLoading, logoutMutation } = useAuth();
 
   const displayName = user?.name || 'Learner';
   const firstName = displayName.trim().split(/\s+/)[0] || 'Learner';
@@ -23,6 +24,7 @@ const LanguageLearningDashboard = () => {
           .map((lang) => `${lang.name} (${lang.level.toUpperCase()})`)
           .join(', ')
       : 'No learning languages selected yet';
+  const nativeLanguageName = nativeLanguage?.name || 'Not set';
 
   useEffect(() => {
     const accessToken = searchParams.get('accessToken');
@@ -40,6 +42,8 @@ const LanguageLearningDashboard = () => {
       localStorage.setItem('refreshToken', refreshToken);
     }
 
+    void queryClient.invalidateQueries({ queryKey: ['/api/user/'] });
+
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete('accessToken');
     nextParams.delete('refreshToken');
@@ -53,6 +57,12 @@ const LanguageLearningDashboard = () => {
       router.push('/');
     }
   }, [isLoading, user, router]);
+
+  useEffect(() => {
+    if (!isLoading && user && (!nativeLanguage || learningLanguages.length === 0)) {
+      router.push('/onboarding');
+    }
+  }, [isLoading, user, nativeLanguage, learningLanguages.length, router]);
 
   const handleSignOut = () => {
     logoutMutation.mutate(undefined, {
@@ -243,6 +253,10 @@ const LanguageLearningDashboard = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Proficiency Level</label>
                 <input type="text" value={primaryLanguageLevel} className="w-full p-2 border border-gray-300 rounded-md" readOnly />
               </div>
+            </div>
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Native Language</label>
+              <input type="text" value={nativeLanguageName} className="w-full p-2 border border-gray-300 rounded-md" readOnly />
             </div>
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Learning Languages</label>
