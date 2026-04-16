@@ -7,6 +7,7 @@ import { VoiceProvider, useVoice } from "@humeai/voice-react";
 import { apiRequest, getQueryFn, queryClient } from "@/lib/queryClient";
 import { LanguageOption } from "@/lib/types";
 import { useAuth } from "@/hooks/useAuth";
+import { createRealtimeConnection } from "@/lib/webrtc";
 
 type OnboardingResponse = {
   success: boolean;
@@ -39,6 +40,14 @@ const onboardingSystemPrompt = [
   "If they choose an invalid pair, explain the valid alternatives.",
 ].join(" ");
 
+const openAiToolInstructions = [
+  "You have tools to update onboarding UI state.",
+  "Use set_native_language when user states their native language.",
+  "Use set_target_language when user states their target language.",
+  "Use set_language_pair when user provides both in one utterance.",
+  "Do not guess languages. Use only english, french, or spanish.",
+].join(" ");
+
 function getLanguageKey(language: LanguageOption): string {
   const raw = `${language.code} ${language.name}`.trim().toLowerCase();
 
@@ -52,6 +61,7 @@ function getLanguageKey(language: LanguageOption): string {
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, learningLanguages, nativeLanguage, isLoading } = useAuth();
+  const [voiceProvider, setVoiceProvider] = useState<"openai" | "hume">("openai");
   const [nativeLanguageId, setNativeLanguageId] = useState<string>("");
   const [targetLanguageId, setTargetLanguageId] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -188,23 +198,46 @@ export default function OnboardingPage() {
     return null;
   }
 
+  const sharedPanelProps: VoiceOnboardingPanelProps = {
+    supportedLanguages,
+    targetLanguageOptions,
+    nativeLanguageId,
+    targetLanguageId,
+    setNativeLanguageId,
+    setTargetLanguageId,
+    allowedTargetKeys,
+    isSubmitting,
+    error,
+    setError,
+    onSubmit: submitOnboarding,
+  };
+
   return (
     <main className="min-h-screen bg-[#f5f2ef] py-10 px-4">
-      <VoiceProvider clearMessagesOnDisconnect={false} messageHistoryLimit={48}>
-        <VoiceOnboardingPanel
-          supportedLanguages={supportedLanguages}
-          targetLanguageOptions={targetLanguageOptions}
-          nativeLanguageId={nativeLanguageId}
-          targetLanguageId={targetLanguageId}
-          setNativeLanguageId={setNativeLanguageId}
-          setTargetLanguageId={setTargetLanguageId}
-          allowedTargetKeys={allowedTargetKeys}
-          isSubmitting={isSubmitting}
-          error={error}
-          setError={setError}
-          onSubmit={submitOnboarding}
-        />
-      </VoiceProvider>
+      <div className="mx-auto mb-4 flex max-w-4xl gap-2">
+        <button
+          type="button"
+          onClick={() => setVoiceProvider("openai")}
+          className={`rounded-lg px-3 py-2 text-sm font-semibold ${voiceProvider === "openai" ? "bg-[#2f241d] text-white" : "border border-[#ccb9a8] bg-white text-[#4a3728]"}`}
+        >
+          OpenAI Realtime
+        </button>
+        <button
+          type="button"
+          onClick={() => setVoiceProvider("hume")}
+          className={`rounded-lg px-3 py-2 text-sm font-semibold ${voiceProvider === "hume" ? "bg-[#2f241d] text-white" : "border border-[#ccb9a8] bg-white text-[#4a3728]"}`}
+        >
+          Hume EVI
+        </button>
+      </div>
+
+      {voiceProvider === "openai" ? (
+        <VoiceOnboardingPanel {...sharedPanelProps} />
+      ) : (
+        <VoiceProvider clearMessagesOnDisconnect={false} messageHistoryLimit={48}>
+          <HumeVoiceOnboardingPanel {...sharedPanelProps} />
+        </VoiceProvider>
+      )}
     </main>
   );
 }
@@ -293,6 +326,640 @@ function VoiceOnboardingPanel({
   setError,
   onSubmit,
 }: VoiceOnboardingPanelProps) {
+  const [sessionStatus, setSessionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
+  const [voiceError, setVoiceError] = useState("");
+  const [isConnectingVoice, setIsConnectingVoice] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
+  const [transcript, setTranscript] = useState<Array<{ id: string; role: "assistant" | "user"; text: string }>>([]);
+  const [lastUserTranscript, setLastUserTranscript] = useState("");
+
+  const lastHandledUtteranceRef = useRef<string>("");
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const localAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const nativeLanguageIdRef = useRef(nativeLanguageId);
+  const targetLanguageIdRef = useRef(targetLanguageId);
+  const isMutedRef = useRef(isMuted);
+
+  useEffect(() => {
+    nativeLanguageIdRef.current = nativeLanguageId;
+  }, [nativeLanguageId]);
+
+  useEffect(() => {
+    targetLanguageIdRef.current = targetLanguageId;
+  }, [targetLanguageId]);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  const languageByKey = useMemo(() => {
+    const map = new Map<string, LanguageOption>();
+    for (const language of supportedLanguages) {
+      map.set(getLanguageKey(language), language);
+    }
+    return map;
+  }, [supportedLanguages]);
+
+  const upsertTranscriptEntry = (
+    id: string,
+    role: "assistant" | "user",
+    text: string,
+    append = false
+  ) => {
+    setTranscript((previous) => {
+      const index = previous.findIndex((entry) => entry.id === id);
+      if (index === -1) {
+        return [...previous, { id, role, text }].slice(-8);
+      }
+
+      const next = [...previous];
+      next[index] = {
+        ...next[index],
+        role,
+        text: append ? `${next[index].text}${text}` : text,
+      };
+      return next.slice(-8);
+    });
+  };
+
+  const applyOnboardingLanguageUpdate = ({
+    nativeLanguageKey,
+    targetLanguageKey,
+  }: {
+    nativeLanguageKey?: string;
+    targetLanguageKey?: string;
+  }) => {
+    const currentNativeId = nativeLanguageIdRef.current;
+    const currentTargetId = targetLanguageIdRef.current;
+
+    const nextNative = nativeLanguageKey ? languageByKey.get(nativeLanguageKey) : undefined;
+    if (nativeLanguageKey && !nextNative) {
+      return { success: false, message: `Unsupported native language: ${nativeLanguageKey}` };
+    }
+
+    const nextTarget = targetLanguageKey ? languageByKey.get(targetLanguageKey) : undefined;
+    if (targetLanguageKey && !nextTarget) {
+      return { success: false, message: `Unsupported target language: ${targetLanguageKey}` };
+    }
+
+    const effectiveNativeId = nextNative ? String(nextNative.id) : currentNativeId;
+    const effectiveNative = supportedLanguages.find((language) => String(language.id) === effectiveNativeId);
+    const effectiveNativeKey = effectiveNative ? getLanguageKey(effectiveNative) : undefined;
+
+    if (targetLanguageKey && effectiveNativeKey) {
+      const allowedForNative = allowedTargetsByNative[effectiveNativeKey] ?? [];
+      if (!allowedForNative.includes(targetLanguageKey)) {
+        const message = "That target language is not available for the selected native language yet.";
+        setError(message);
+        return { success: false, message };
+      }
+    }
+
+    if (nextNative) {
+      const nextNativeId = String(nextNative.id);
+      if (nextNativeId !== currentNativeId) {
+        setNativeLanguageId(nextNativeId);
+      }
+    }
+
+    if (nextTarget) {
+      const nextTargetId = String(nextTarget.id);
+      if (nextTargetId !== currentTargetId) {
+        setTargetLanguageId(nextTargetId);
+      }
+    }
+
+    setError("");
+    return {
+      success: true,
+      nativeLanguageId: nextNative ? String(nextNative.id) : currentNativeId,
+      targetLanguageId: nextTarget ? String(nextTarget.id) : currentTargetId,
+    };
+  };
+
+  const disconnectSession = () => {
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.getSenders().forEach((sender) => {
+        sender.track?.stop();
+      });
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
+    dataChannelRef.current = null;
+    localAudioTrackRef.current = null;
+    setIsAssistantSpeaking(false);
+    setSessionStatus("disconnected");
+    setIsConnectingVoice(false);
+  };
+
+  const handleRealtimeEvent = (rawEvent: MessageEvent) => {
+    let event: Record<string, unknown>;
+
+    try {
+      event = JSON.parse(rawEvent.data as string) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+
+    const eventType = String(event.type ?? "");
+
+    if (eventType === "conversation.item.input_audio_transcription.completed") {
+      const itemId = String(event.item_id ?? `user-${Date.now()}`);
+      const transcriptText = String(event.transcript ?? "").trim() || "[inaudible]";
+      upsertTranscriptEntry(itemId, "user", transcriptText, false);
+
+      if (transcriptText !== "[inaudible]") {
+        setLastUserTranscript(transcriptText);
+      }
+      return;
+    }
+
+    if (eventType === "output_audio_buffer.started") {
+      setIsAssistantSpeaking(true);
+      if (localAudioTrackRef.current) {
+        localAudioTrackRef.current.enabled = false;
+      }
+      return;
+    }
+
+    if (eventType === "output_audio_buffer.stopped") {
+      setIsAssistantSpeaking(false);
+      if (localAudioTrackRef.current) {
+        localAudioTrackRef.current.enabled = !isMutedRef.current;
+      }
+      return;
+    }
+
+    if (eventType === "response.function_call_arguments.done") {
+      const functionName = String(event.name ?? "");
+      const callId = String(event.call_id ?? "");
+      const rawArgs = String(event.arguments ?? "{}");
+
+      let parsedArgs: Record<string, string> = {};
+      try {
+        parsedArgs = JSON.parse(rawArgs) as Record<string, string>;
+      } catch {
+        parsedArgs = {};
+      }
+
+      let result: Record<string, unknown> | null = null;
+
+      if (functionName === "set_native_language") {
+        result = applyOnboardingLanguageUpdate({ nativeLanguageKey: parsedArgs.native_language });
+      }
+
+      if (functionName === "set_target_language") {
+        result = applyOnboardingLanguageUpdate({ targetLanguageKey: parsedArgs.target_language });
+      }
+
+      if (functionName === "set_language_pair") {
+        result = applyOnboardingLanguageUpdate({
+          nativeLanguageKey: parsedArgs.native_language,
+          targetLanguageKey: parsedArgs.target_language,
+        });
+      }
+
+      if (result && callId && dataChannelRef.current?.readyState === "open") {
+        dataChannelRef.current.send(
+          JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+              type: "function_call_output",
+              call_id: callId,
+              output: JSON.stringify(result),
+            },
+          })
+        );
+        dataChannelRef.current.send(JSON.stringify({ type: "response.create" }));
+      }
+
+      return;
+    }
+
+    if (eventType === "response.audio_transcript.delta" || eventType === "response.text.delta") {
+      const itemId = String(event.item_id ?? "assistant-stream");
+      const delta = String(event.delta ?? "");
+      if (delta) {
+        upsertTranscriptEntry(itemId, "assistant", delta, true);
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      disconnectSession();
+    };
+  }, []);
+
+  useEffect(() => {
+    const content = lastUserTranscript;
+    if (!content) {
+      return;
+    }
+
+    const normalizedContent = content.trim().toLowerCase();
+    if (!normalizedContent || normalizedContent === lastHandledUtteranceRef.current) {
+      return;
+    }
+
+    lastHandledUtteranceRef.current = normalizedContent;
+
+    const { nativeKey: spokenNativeKey, targetKey: spokenTargetKey, mentionedKeys } = extractSpokenLanguageSelection(content);
+    if (!spokenNativeKey && !spokenTargetKey && mentionedKeys.length === 0) {
+      return;
+    }
+
+    let nativeKeyToApply = spokenNativeKey;
+    let targetKeyToApply = spokenTargetKey;
+
+    // Fallback for short utterances such as "Spanish and English".
+    if (!nativeKeyToApply && !targetKeyToApply && mentionedKeys.length >= 2) {
+      [nativeKeyToApply, targetKeyToApply] = mentionedKeys;
+    }
+
+    if (!nativeKeyToApply && !targetKeyToApply && mentionedKeys.length === 1) {
+      if (normalizedContent.includes("native")) {
+        nativeKeyToApply = mentionedKeys[0];
+      } else if (normalizedContent.includes("target") || normalizedContent.includes("learn")) {
+        targetKeyToApply = mentionedKeys[0];
+      }
+    }
+
+    if (nativeKeyToApply) {
+      const nativeCandidate = languageByKey.get(nativeKeyToApply);
+      if (nativeCandidate) {
+        const nextNativeId = String(nativeCandidate.id);
+        if (nextNativeId !== nativeLanguageId) {
+          setNativeLanguageId(nextNativeId);
+        }
+      }
+    }
+
+    const effectiveNativeKey = nativeKeyToApply
+      ?? (nativeLanguageId
+        ? getLanguageKey(
+          supportedLanguages.find((language) => String(language.id) === nativeLanguageId)
+          ?? ({ code: "", name: "" } as LanguageOption)
+        )
+        : undefined);
+
+    if (!targetKeyToApply && mentionedKeys.length > 0) {
+      const fallbackTarget = mentionedKeys.find((key) => key !== nativeKeyToApply);
+      if (fallbackTarget) {
+        targetKeyToApply = fallbackTarget;
+      }
+    }
+
+    if (!targetKeyToApply) {
+      return;
+    }
+
+    const targetCandidate = languageByKey.get(targetKeyToApply);
+    if (!targetCandidate) {
+      return;
+    }
+
+    if (effectiveNativeKey) {
+      const allowedForNative = allowedTargetsByNative[effectiveNativeKey] ?? [];
+      if (!allowedForNative.includes(targetKeyToApply)) {
+        setError("That target language is not available for your selected native language yet.");
+        return;
+      }
+    }
+
+    const nextTargetId = String(targetCandidate.id);
+    if (nextTargetId !== targetLanguageId) {
+      setError("");
+      setTargetLanguageId(nextTargetId);
+    }
+  }, [lastUserTranscript, nativeLanguageId, targetLanguageId, languageByKey, setNativeLanguageId, setTargetLanguageId, setError, supportedLanguages]);
+
+  useEffect(() => {
+    if (localAudioTrackRef.current) {
+      localAudioTrackRef.current.enabled = !isMuted && !isAssistantSpeaking;
+    }
+  }, [isMuted, isAssistantSpeaking]);
+
+  const startVoiceOnboarding = async () => {
+    setVoiceError("");
+    setError("");
+    setIsConnectingVoice(true);
+
+    try {
+      if (sessionStatus !== "disconnected") {
+        return;
+      }
+
+      setSessionStatus("connecting");
+
+      const response = await fetch("/api/session", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || "Could not fetch realtime session token.");
+      }
+
+      const tokenPayload = (await response.json()) as { client_secret?: { value?: string } };
+      const ephemeralKey = tokenPayload.client_secret?.value;
+      if (!ephemeralKey) {
+        throw new Error("Received empty OpenAI realtime session key.");
+      }
+
+      if (!audioElementRef.current) {
+        const audio = new Audio();
+        audio.autoplay = true;
+        audioElementRef.current = audio;
+      }
+
+      const { pc, dataChannel } = await createRealtimeConnection(ephemeralKey, audioElementRef);
+      peerConnectionRef.current = pc;
+      dataChannelRef.current = dataChannel;
+
+      localAudioTrackRef.current =
+        pc.getSenders().find((sender) => sender.track?.kind === "audio")?.track ?? null;
+      if (localAudioTrackRef.current) {
+        localAudioTrackRef.current.enabled = !isMuted && !isAssistantSpeaking;
+      }
+
+      dataChannel.addEventListener("message", handleRealtimeEvent);
+
+      dataChannel.addEventListener("open", () => {
+        setSessionStatus("connected");
+
+        dataChannel.send(
+          JSON.stringify({
+            type: "session.update",
+            session: {
+              modalities: ["text", "audio"],
+              instructions: `${onboardingSystemPrompt} ${openAiToolInstructions}`,
+              voice: "sage",
+              input_audio_transcription: { model: "whisper-1" },
+              turn_detection: {
+                type: "server_vad",
+                threshold: 0.75,
+                prefix_padding_ms: 220,
+                silence_duration_ms: 900,
+              },
+              tools: [
+                {
+                  type: "function",
+                  name: "set_native_language",
+                  description: "Set the native language select value.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      native_language: {
+                        type: "string",
+                        enum: ["english", "french", "spanish"],
+                      },
+                    },
+                    required: ["native_language"],
+                    additionalProperties: false,
+                  },
+                },
+                {
+                  type: "function",
+                  name: "set_target_language",
+                  description: "Set the target language select value.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      target_language: {
+                        type: "string",
+                        enum: ["english", "french", "spanish"],
+                      },
+                    },
+                    required: ["target_language"],
+                    additionalProperties: false,
+                  },
+                },
+                {
+                  type: "function",
+                  name: "set_language_pair",
+                  description: "Set both native and target languages in one tool call.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      native_language: {
+                        type: "string",
+                        enum: ["english", "french", "spanish"],
+                      },
+                      target_language: {
+                        type: "string",
+                        enum: ["english", "french", "spanish"],
+                      },
+                    },
+                    required: ["native_language", "target_language"],
+                    additionalProperties: false,
+                  },
+                },
+              ],
+            },
+          })
+        );
+
+        dataChannel.send(
+          JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+              type: "message",
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: "Start onboarding. Ask me for my native language and target language.",
+                },
+              ],
+            },
+          })
+        );
+
+        dataChannel.send(JSON.stringify({ type: "response.create" }));
+      });
+
+      dataChannel.addEventListener("close", () => {
+        setSessionStatus("disconnected");
+      });
+
+      dataChannel.addEventListener("error", () => {
+        setVoiceError("Realtime voice connection error.");
+      });
+    } catch (err) {
+      setSessionStatus("disconnected");
+      setVoiceError(err instanceof Error ? err.message : "Could not start voice onboarding.");
+    } finally {
+      setIsConnectingVoice(false);
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted((previous) => !previous);
+  };
+
+  const selectedNative = supportedLanguages.find((language) => String(language.id) === nativeLanguageId);
+  const selectedTarget = supportedLanguages.find((language) => String(language.id) === targetLanguageId);
+
+  return (
+    <div className="mx-auto max-w-4xl rounded-3xl border border-[#d6cfc8] bg-gradient-to-br from-[#fff7ef] via-[#f9f4ec] to-[#e9f5f1] p-6 shadow-xl md:p-10">
+      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="mb-2 inline-block rounded-full bg-[#4a3728] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#fff2df]">
+            Voice Onboarding
+          </p>
+          <h1 className="text-3xl font-black tracking-tight text-[#2f241d] md:text-5xl">Set Up Your Learning with Realtime Voice</h1>
+          <p className="mt-3 max-w-2xl text-sm text-[#4f453d] md:text-base">
+            This flow uses OpenAI Realtime Voice. Speak naturally, then review and confirm your language pair.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[#cbb79e] bg-[#fff3df] px-4 py-3 text-sm text-[#5b4331]">
+          <p className="font-semibold">Voice status: {sessionStatus}</p>
+          <p>Mic: {isMuted ? "muted" : "live"}</p>
+          <p>Assistant: {isAssistantSpeaking ? "speaking" : "idle"}</p>
+        </div>
+      </div>
+
+      <div className="mb-8 grid gap-3 md:grid-cols-3">
+        <button
+          type="button"
+          onClick={startVoiceOnboarding}
+          disabled={isConnectingVoice || sessionStatus === "connected" || supportedLanguages.length === 0}
+          className="rounded-xl bg-[#2f241d] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1f1712] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isConnectingVoice ? "Connecting..." : "Start Voice Session"}
+        </button>
+
+        <button
+          type="button"
+          onClick={disconnectSession}
+          disabled={sessionStatus !== "connected"}
+          className="rounded-xl bg-[#8b6a4f] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#77563f] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          End Session
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleMute}
+          disabled={sessionStatus !== "connected"}
+          className="rounded-xl border border-[#8b6a4f] bg-white px-4 py-3 text-sm font-semibold text-[#5d4838] transition hover:bg-[#fffaf3] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isMuted ? "Unmute Mic" : "Mute Mic"}
+        </button>
+      </div>
+
+      {voiceError ? <p className="mb-4 rounded-md bg-[#ffe8e6] px-4 py-3 text-sm text-[#a13934]">{voiceError}</p> : null}
+
+      <div className="mb-8 rounded-2xl border border-[#d6cec4] bg-white/70 p-4">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-[#68574a]">Live transcript</p>
+        {transcript.length === 0 ? (
+          <p className="text-sm text-[#736455]">No finalized messages yet. Start a voice session and speak to begin.</p>
+        ) : (
+          <div className="space-y-3">
+            {transcript.map((entry) => (
+              <div
+                key={entry.id}
+                className={`rounded-xl px-4 py-3 text-sm ${entry.role === "assistant" ? "bg-[#e9f6f0] text-[#28473a]" : "bg-[#f4efe8] text-[#3d332c]"}`}
+              >
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] opacity-80">
+                  {entry.role === "assistant" ? "Guide" : "You"}
+                </p>
+                <p>{entry.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <div>
+          <label htmlFor="nativeLanguage" className="mb-2 block text-sm font-semibold text-[#4a3728]">
+            Native language
+          </label>
+          <select
+            id="nativeLanguage"
+            value={nativeLanguageId}
+            onChange={(event) => setNativeLanguageId(event.target.value)}
+            className="w-full rounded-lg border border-[#ccb9a8] bg-white px-3 py-3 text-[#33271f]"
+          >
+            <option value="">Select native language</option>
+            {supportedLanguages.map((language) => (
+              <option key={language.id} value={language.id}>
+                {language.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="targetLanguage" className="mb-2 block text-sm font-semibold text-[#4a3728]">
+            Target language
+          </label>
+          <select
+            id="targetLanguage"
+            value={targetLanguageId}
+            onChange={(event) => setTargetLanguageId(event.target.value)}
+            className="w-full rounded-lg border border-[#ccb9a8] bg-white px-3 py-3 text-[#33271f]"
+          >
+            <option value="">Select target language</option>
+            {targetLanguageOptions.map((language) => (
+              <option key={language.id} value={language.id}>
+                {language.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-[#dccfc2] bg-[#fffaf3] p-4 text-sm text-[#5b4b3d]">
+        <p className="font-semibold">Current selection</p>
+        <p className="mt-1">Native: {selectedNative?.name ?? "Not selected"}</p>
+        <p>Target: {selectedTarget?.name ?? "Not selected"}</p>
+        <p className="mt-2 text-xs">
+          Allowed target keys for current native: {allowedTargetKeys.length > 0 ? allowedTargetKeys.join(", ") : "none"}
+        </p>
+      </div>
+
+      {supportedLanguages.length === 0 ? (
+        <p className="mt-5 text-sm text-red-700">
+          No supported onboarding languages were found in your language catalog. Ensure English, French, and Spanish exist in backend languages.
+        </p>
+      ) : null}
+
+      {error ? <p className="mt-5 text-sm text-red-700">{error}</p> : null}
+
+      <button
+        type="button"
+        onClick={() => void onSubmit()}
+        disabled={isSubmitting}
+        className="mt-6 w-full rounded-xl bg-[#2f241d] py-3 text-sm font-semibold text-white transition hover:bg-[#1f1712] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting ? "Saving..." : "Complete Onboarding"}
+      </button>
+    </div>
+  );
+}
+
+function HumeVoiceOnboardingPanel({
+  supportedLanguages,
+  targetLanguageOptions,
+  nativeLanguageId,
+  targetLanguageId,
+  setNativeLanguageId,
+  setTargetLanguageId,
+  allowedTargetKeys,
+  isSubmitting,
+  error,
+  setError,
+  onSubmit,
+}: VoiceOnboardingPanelProps) {
   const {
     connect,
     disconnect,
@@ -363,7 +1030,6 @@ function VoiceOnboardingPanel({
     let nativeKeyToApply = spokenNativeKey;
     let targetKeyToApply = spokenTargetKey;
 
-    // Fallback for short utterances such as "Spanish and English".
     if (!nativeKeyToApply && !targetKeyToApply && mentionedKeys.length >= 2) {
       [nativeKeyToApply, targetKeyToApply] = mentionedKeys;
     }
@@ -481,7 +1147,7 @@ function VoiceOnboardingPanel({
           </p>
           <h1 className="text-3xl font-black tracking-tight text-[#2f241d] md:text-5xl">Set Up Your Learning with Realtime Voice</h1>
           <p className="mt-3 max-w-2xl text-sm text-[#4f453d] md:text-base">
-            This flow uses Hume EVI with your EVI 4 mini configuration. Speak naturally, then review and confirm your language pair.
+            This flow uses Hume EVI. Speak naturally, then review and confirm your language pair.
           </p>
         </div>
 

@@ -128,7 +128,11 @@ export async function createRealtimeConnection(
         }
     };
     const mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+        },
     });
     pc.addTrack(mediaStream.getTracks()[0]);
 
