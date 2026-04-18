@@ -72,19 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nativeLanguage: null,
       });
       toast("welcome back")
-      // toast({
-      //   title: "Welcome back!",
-      //   description: `You've successfully logged in.`,
-      // });
     },
     onError: (error: Error) => {
       toast.error("login failed", {
       })
-      // toast({
-      //   title: "Login failed",
-      //   description: error.message,
-      //   variant: "destructive",
-      // });
     },
   });
 
@@ -95,18 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       toast("welcome to mentarie")
-      // toast({
-      //   title: "Welcome to LinguaConverse!",
-      //   description: "Your account has been created successfully.",
-      // });
     },
     onError: (error: Error) => {
       toast("registration failed")
-      // toast({
-      //   title: "Registration failed",
-      //   description: error.message,
-      //   variant: "destructive",
-      // });
     },
   });
 
@@ -119,18 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
       queryClient.setQueryData(["/api/user/"], null);
       toast("logged out")
-      // toast({
-      //   title: "Logged out",
-      //   description: "You've been successfully logged out.",
-      // });
     },
     onError: (error: Error) => {
       toast("logout failed")
-      // toast({
-      //   title: "Logout failed",
-      //   description: error.message,
-      //   variant: "destructive",
-      // });
     },
   });
   

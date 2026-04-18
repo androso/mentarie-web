@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SessionStatus } from "../lib/types";
 import { createRealtimeConnection } from "../lib/webrtc";
 
@@ -19,6 +19,7 @@ export const useRealtimeConnection = ({
     const [sessionStatus, setSessionStatus] =
         useState<SessionStatus>("DISCONNECTED");
     const [isDataChannelReady, setIsDataChannelReady] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const dcRef = useRef<RTCDataChannel | null>(null);
     const audioElementRef = useRef<HTMLAudioElement | null>(null);
@@ -114,6 +115,20 @@ export const useRealtimeConnection = ({
         console.log("REALTIME DISCONNECTED")
     };
 
+    const mute = useCallback(() => {
+        pcRef.current?.getSenders().forEach((sender) => {
+            if (sender.track?.kind === "audio") sender.track.enabled = false;
+        });
+        setIsMuted(true);
+    }, []);
+
+    const unmute = useCallback(() => {
+        pcRef.current?.getSenders().forEach((sender) => {
+            if (sender.track?.kind === "audio") sender.track.enabled = true;
+        });
+        setIsMuted(false);
+    }, []);
+
     const sendClientEvent = (eventObj: any) => {
         if (isDataChannelReady && dcRef.current?.readyState === "open") {
             dcRef.current.send(JSON.stringify(eventObj));
@@ -142,5 +157,8 @@ export const useRealtimeConnection = ({
         disconnect,
         sendClientEvent,
         isDataChannelReady,
+        isMuted,
+        mute,
+        unmute,
     };
 };

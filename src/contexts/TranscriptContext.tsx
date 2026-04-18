@@ -24,6 +24,7 @@ type TranscriptContextValue = {
         itemId: string,
         updatedProperties: Partial<TranscriptItem>
     ) => void;
+    clearTranscriptItems: () => void;
 };
 
 const TranscriptContext = createContext<TranscriptContextValue | null>(null);
@@ -93,13 +94,16 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
         });
     };
 
+    const clearTranscriptItems = () => setTranscriptItems([]);
+
     return (
-        <TranscriptContext.Provider 
+        <TranscriptContext.Provider
             value={{
                 transcriptItems,
                 addTranscriptMessage,
                 updateTranscriptMessage,
-                updateTranscriptItem
+                updateTranscriptItem,
+                clearTranscriptItems,
             }}
         >
             {children}
