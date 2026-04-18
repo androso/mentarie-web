@@ -5,14 +5,12 @@ import { Eye, Mail, Lock, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { queryClient } from "@/lib/queryClient"
+import { setAccessToken } from "@/lib/authTokens"
 
 // Define the props interface outside of the component
 interface SignInFormProps {
   onSwitchForm?: () => void
 }
-
-// Define API base URL with fallback
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export default function SignInForm({ onSwitchForm }: SignInFormProps) {
   const router = useRouter()
@@ -49,7 +47,7 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
     
     try {
       // Updated URL to the new resend verification endpoint
-      const response = await fetch(`${API_BASE_URL}/api/auth/resend-verification`, {
+      const response = await fetch('/api/auth/resend-verification', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,9 +106,9 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
     setIsLoading(true)
     
     try {
-      console.log(`Attempting to login with API URL: ${API_BASE_URL}/api/auth/login`)
+      console.log('Attempting to login via /api/auth/login')
       
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -143,10 +141,7 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
       // Store tokens properly
       if (data.token) {
         if (data.token.accessTk) {
-          localStorage.setItem('accessToken', data.token.accessTk)
-        }
-        if (data.token.refreshTk) {
-          localStorage.setItem('refreshToken', data.token.refreshTk)
+          setAccessToken(data.token.accessTk)
         }
       }
       

@@ -2,14 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { Home, Book, BarChart2, User, LogOut, Circle, AlertCircle, FileText, MessageSquare } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { queryClient } from '@/lib/queryClient';
 
 const LanguageLearningDashboard = () => {
   const [activeSection, setActiveSection] = useState('learn');
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user, nativeLanguage, learningLanguages, isLoading, logoutMutation } = useAuth();
 
   const displayName = user?.name || 'Learner';
@@ -25,32 +23,6 @@ const LanguageLearningDashboard = () => {
           .join(', ')
       : 'No learning languages selected yet';
   const nativeLanguageName = nativeLanguage?.name || 'Not set';
-
-  useEffect(() => {
-    const accessToken = searchParams.get('accessToken');
-    const refreshToken = searchParams.get('refreshToken');
-
-    if (!accessToken && !refreshToken) {
-      return;
-    }
-
-    if (accessToken) {
-      localStorage.setItem('accessToken', accessToken);
-    }
-
-    if (refreshToken) {
-      localStorage.setItem('refreshToken', refreshToken);
-    }
-
-    void queryClient.invalidateQueries({ queryKey: ['/api/user/'] });
-
-    const nextParams = new URLSearchParams(searchParams.toString());
-    nextParams.delete('accessToken');
-    nextParams.delete('refreshToken');
-
-    const query = nextParams.toString();
-    router.replace(query ? `/home?${query}` : '/home');
-  }, [router, searchParams]);
 
   useEffect(() => {
     if (!isLoading && !user) {

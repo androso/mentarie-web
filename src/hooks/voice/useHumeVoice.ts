@@ -5,6 +5,7 @@ import { useVoice, VoiceReadyState } from "@humeai/voice-react";
 import { useTranscript } from "@/contexts/TranscriptContext";
 import type { VoiceSession, HumeVoiceOptions } from "@/lib/voice/types";
 import type { VoiceStatus } from "@/lib/voice/types";
+import { apiRequest } from "@/lib/queryClient";
 
 // Must be called inside a HumeVoiceProvider ancestor.
 export function useHumeVoice({ configId, onEmotion }: HumeVoiceOptions): VoiceSession {
@@ -64,11 +65,7 @@ export function useHumeVoice({ configId, onEmotion }: HumeVoiceOptions): VoiceSe
     }, [readyState, error]);
 
     const connect = useCallback(async () => {
-        const token =
-            typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-        const res = await fetch("/api/hume/access-token", {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const res = await apiRequest("GET", "/api/hume/access-token");
         const data = await res.json();
         await humeConnect({
             auth: { type: "accessToken", value: data.accessToken },

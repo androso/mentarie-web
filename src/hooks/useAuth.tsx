@@ -13,12 +13,12 @@ import {
   LanguageOption,
 } from "@/lib/types";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
+import { clearAccessToken, setAccessToken } from "@/lib/authTokens";
 import toast from "react-hot-toast";
 
 type LoginResponse = {
   token: {
     accessTk: string;
-    refreshTk: string;
   };
   user: SelectUser;
 };
@@ -63,8 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return (await res.json()) as LoginResponse;
     },
     onSuccess: (response: LoginResponse) => {
-      localStorage.setItem("accessToken", response.token.accessTk);
-      localStorage.setItem("refreshToken", response.token.refreshTk);
+      setAccessToken(response.token.accessTk);
 
       queryClient.setQueryData(["/api/user/"], {
         user: response.user,
@@ -94,8 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
+      try {
+        await apiRequest("POST", "/api/auth/logout");
+      } finally {
+        clearAccessToken();
+      }
     },
     onSuccess: () => {
       queryClient.clear();

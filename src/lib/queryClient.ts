@@ -1,11 +1,12 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import {
+	clearAccessToken,
+	getAccessToken,
+	setAccessToken,
+} from "@/lib/authTokens";
 
 function getAuthHeaders(): Record<string, string> {
-	if (typeof window === "undefined") {
-		return {};
-	}
-
-	const token = localStorage.getItem("accessToken");
+	const token = getAccessToken();
 	return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -23,22 +24,27 @@ async function attemptTokenRefresh(): Promise<boolean> {
 	if (refreshPromise) return refreshPromise;
 
 	refreshPromise = (async () => {
-		const refreshToken = localStorage.getItem("refreshToken");
-		if (!refreshToken) return false;
-
 		try {
 			const res = await fetch("/api/auth/refresh", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ refreshToken }),
+				credentials: "include",
 			});
 
-			if (!res.ok) return false;
+			if (!res.ok) {
+				clearAccessToken();
+				return false;
+			}
 
-			const data = await res.json();
-			localStorage.setItem("accessToken", data.accessToken);
+			const data = (await res.json()) as { accessToken?: string };
+			if (!data.accessToken) {
+				clearAccessToken();
+				return false;
+			}
+
+			setAccessToken(data.accessToken);
 			return true;
 		} catch {
+			clearAccessToken();
 			return false;
 		} finally {
 			refreshPromise = null;

@@ -3,13 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 const backendApiUrl =
   process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-type GoogleCallbackResponse = {
-  token?: {
-    accessTk?: string;
-    refreshTk?: string;
-  };
-};
-
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -35,17 +28,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/?error=oauth_callback_failed", request.url));
   }
 
-  const data = (await callbackResponse.json()) as GoogleCallbackResponse;
-  const accessToken = data.token?.accessTk;
-  const refreshToken = data.token?.refreshTk;
+  const refreshCookieHeader = callbackResponse.headers.get("set-cookie");
+  if (!refreshCookieHeader) {
+    return NextResponse.redirect(new URL("/?error=oauth_missing_refresh_cookie", request.url));
+  }
 
-  if (!accessToken || !refreshToken) {
-    return NextResponse.redirect(new URL("/?error=oauth_missing_tokens", request.url));
+  const refreshTokenMatch = refreshCookieHeader.match(/refresh_token=([^;]+)/);
+  if (!refreshTokenMatch?.[1]) {
+    return NextResponse.redirect(new URL("/?error=oauth_missing_refresh_cookie", request.url));
   }
 
   const redirectUrl = new URL("/home", request.url);
-  redirectUrl.searchParams.set("accessToken", accessToken);
-  redirectUrl.searchParams.set("refreshToken", refreshToken);
+  const response = NextResponse.redirect(redirectUrl);
+  response.cookies.set({
+    name: "refresh_token",
+    value: refreshTokenMatch[1],
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 7,
+    path: "/",
+  });
 
-  return NextResponse.redirect(redirectUrl);
+  return response;
 }
