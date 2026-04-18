@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error,
     isLoading,
   } = useQuery<CurrentUserResponse | null>({
-    queryKey: ["/api/user/"],
+    queryKey: ["/api/user"],
     queryFn: currentUserQueryFn,
     staleTime: 0,
     refetchOnMount: true,
@@ -65,16 +65,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: (response: LoginResponse) => {
       setAccessToken(response.token.accessTk);
 
-      queryClient.setQueryData(["/api/user/"], {
+      queryClient.setQueryData(["/api/user"], {
         user: response.user,
         learningLanguages: [],
         nativeLanguage: null,
       });
       toast("welcome back")
     },
-    onError: (error: Error) => {
-      toast.error("login failed", {
-      })
+    onError: () => {
+      toast.error("login failed")
     },
   });
 
@@ -86,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: () => {
       toast("welcome to mentarie")
     },
-    onError: (error: Error) => {
+    onError: () => {
       toast("registration failed")
     },
   });
@@ -101,10 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       queryClient.clear();
-      queryClient.setQueryData(["/api/user/"], null);
+      queryClient.setQueryData(["/api/user"], null);
       toast("logged out")
     },
-    onError: (error: Error) => {
+    onError: () => {
       toast("logout failed")
     },
   });

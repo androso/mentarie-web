@@ -241,7 +241,7 @@ export default function OnboardingPage() {
 				targetLanguageId: Number(targetLanguageId),
 			});
 			(await response.json()) as OnboardingResponse;
-			await queryClient.invalidateQueries({ queryKey: ["/api/user/"] });
+			await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
 			router.push("/home");
 		} catch (err) {
 			setError(

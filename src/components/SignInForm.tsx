@@ -150,7 +150,7 @@ export default function SignInForm({ onSwitchForm }: SignInFormProps) {
         localStorage.setItem('user', JSON.stringify(data.user))
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['/api/user/'] })
+      await queryClient.invalidateQueries({ queryKey: ['/api/user'] })
       
       // Reset verification states
       setNeedsVerification(false)
