@@ -1,9 +1,11 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Home, Book, BarChart2, User, LogOut, Circle, AlertCircle, FileText, MessageSquare } from 'lucide-react';
+import { Home, Book, BarChart2, User, LogOut, Check, Lock, Trophy, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useCourses, useLevelRoadmap } from '@/hooks/useCourses';
+import type { CourseWithUnits, UnitWithStatus } from '@/lib/types';
 
 const LanguageLearningDashboard = () => {
   const [activeSection, setActiveSection] = useState('learn');
@@ -14,6 +16,20 @@ const LanguageLearningDashboard = () => {
   const firstName = displayName.trim().split(/\s+/)[0] || 'Learner';
   const profileImage = user?.image || '/api/placeholder/56/56';
   const primaryLearningLanguage = learningLanguages[0];
+
+  const primaryLanguageId = primaryLearningLanguage?.languageId;
+  const primaryLevelCode = primaryLearningLanguage?.level;
+  const validLevelCode =
+    primaryLevelCode && ['a2', 'b1', 'b2'].includes(primaryLevelCode)
+      ? primaryLevelCode
+      : undefined;
+
+  const { coursesWithUnits, isLoading: roadmapLoading } = useLevelRoadmap(
+    validLevelCode,
+    primaryLanguageId,
+  );
+  const { data: allCourses } = useCourses(primaryLanguageId);
+
   const primaryLanguageName = primaryLearningLanguage?.name || 'Not set';
   const primaryLanguageLevel = primaryLearningLanguage?.level.toUpperCase() || 'Not set';
   const learningLanguageSummary =
@@ -50,6 +66,102 @@ const LanguageLearningDashboard = () => {
     return null;
   }
   
+  // Derive the "next up" unit for the Today's Lesson card
+  const nextUnit = (() => {
+    for (const course of coursesWithUnits) {
+      const active = course.units.find((u) => u.status === 'in_progress');
+      if (active) return { unit: active, course };
+    }
+    for (const course of coursesWithUnits) {
+      const next = course.units.find((u) => u.status === 'unlocked');
+      if (next) return { unit: next, course };
+    }
+    return null;
+  })();
+
+  const renderUnitNode = (unit: UnitWithStatus, isLast: boolean) => {
+    const nodeSize = unit.isCapstone ? 'w-20 h-20' : 'w-14 h-14';
+    const iconSize = unit.isCapstone ? 'h-9 w-9' : 'h-7 w-7';
+
+    const nodeStyle =
+      unit.status === 'completed'
+        ? 'bg-green-500 text-white shadow-md'
+        : unit.status === 'in_progress'
+          ? 'bg-[#4e342e] text-white shadow-md'
+          : unit.status === 'unlocked'
+            ? 'bg-white border-2 border-[#4e342e] text-[#4e342e]'
+            : 'bg-gray-100 border border-gray-200 text-gray-300';
+
+    const labelStyle =
+      unit.status === 'locked' ? 'text-gray-400' : 'text-gray-900';
+
+    return (
+      <div key={unit.id} className="relative flex items-start mb-6 w-full">
+        {/* Connector line */}
+        {!isLast && (
+          <div className="absolute left-[26px] top-14 bottom-0 w-px border-l border-dashed border-gray-300" />
+        )}
+
+        {/* Node circle */}
+        <div
+          className={`${nodeSize} rounded-full flex-shrink-0 flex items-center justify-center z-10 ${nodeStyle}`}
+        >
+          {unit.status === 'completed' ? (
+            <Check className={iconSize} />
+          ) : unit.status === 'locked' ? (
+            <Lock className={iconSize} />
+          ) : unit.isCapstone ? (
+            <Trophy className={iconSize} />
+          ) : (
+            <ChevronRight className={iconSize} />
+          )}
+        </div>
+
+        {/* Label */}
+        <div className="ml-4 pt-1">
+          <p className={`font-semibold leading-tight ${labelStyle}`}>
+            {unit.title}
+            {unit.isCapstone && (
+              <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                Capstone
+              </span>
+            )}
+          </p>
+          <p className="text-sm text-gray-500 mt-0.5 leading-snug">
+            {unit.communicativeGoal}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCourseBlock = (course: CourseWithUnits) => (
+    <div key={course.id} className="mb-10">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+          Block {course.blockOrder}
+        </span>
+        <span className="text-gray-300">·</span>
+        <h3 className="text-base font-bold text-[#4e342e]">{course.title}</h3>
+      </div>
+      <div className="pl-0">
+        {course.units.length === 0
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center mb-6">
+                <div className="w-14 h-14 rounded-full bg-gray-100 animate-pulse flex-shrink-0" />
+                <div className="ml-4 space-y-2">
+                  <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+                  <div className="h-3 w-56 bg-gray-100 rounded animate-pulse" />
+                </div>
+              </div>
+            ))
+          : course.units.map((unit, idx) =>
+              renderUnitNode(unit, idx === course.units.length - 1),
+            )}
+      </div>
+    </div>
+  );
+
   // Content for Learn section (default)
   const renderLearnContent = () => (
     <div className="max-w-4xl mx-auto p-8">
@@ -86,81 +198,154 @@ const LanguageLearningDashboard = () => {
         <p className="text-gray-600">Continue your progress</p>
       </div>
 
-      {/* Conversations Card */}
+      {/* Next unit card */}
       <div className="mb-12 border border-gray-200 rounded-lg p-6 shadow-sm bg-white">
-        <div className="flex items-center mb-4">
-          <MessageSquare className="h-5 w-5 text-[#4e342e] mr-2" />
-          <span className="font-medium text-gray-900">Conversations</span>
-        </div>
-        <p className="mb-4 text-gray-600">Food & Friends</p>
-        <div className="flex justify-end">
-          <button className="bg-[#4e342e] text-white py-2 px-4 rounded-full text-sm hover:bg-[#6d4c41] transition-colors">
-            View all units
-          </button>
-        </div>
+        {roadmapLoading ? (
+          <div className="space-y-3">
+            <div className="h-5 w-48 bg-gray-100 rounded animate-pulse" />
+            <div className="h-4 w-64 bg-gray-100 rounded animate-pulse" />
+          </div>
+        ) : nextUnit ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">
+              {nextUnit.unit.status === 'in_progress' ? 'Continue' : 'Up next'} · {nextUnit.course.title}
+            </p>
+            <p className="font-semibold text-gray-900 mb-1">{nextUnit.unit.title}</p>
+            <p className="text-sm text-gray-500 mb-4">{nextUnit.unit.communicativeGoal}</p>
+            <div className="flex justify-end">
+              <button className="bg-[#4e342e] text-white py-2 px-4 rounded-full text-sm hover:bg-[#6d4c41] transition-colors">
+                {nextUnit.unit.status === 'in_progress' ? 'Resume' : 'Start'}
+              </button>
+            </div>
+          </>
+        ) : coursesWithUnits.length === 0 ? (
+          <p className="text-gray-500 text-sm">
+            {validLevelCode ? 'No courses available yet.' : 'Courses for your level are coming soon.'}
+          </p>
+        ) : (
+          <p className="text-gray-500 text-sm">All units completed — great work!</p>
+        )}
       </div>
 
-      {/* Unit Progress */}
+      {/* Level Roadmap */}
       <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-8 text-[#4e342e]">Unit Progress</h2>
-        
-        <div className="flex flex-col items-center">
-          <div className="relative">
-            <div className="absolute top-0 bottom-0 left-1/2 w-px border-l border-dashed border-gray-300 -translate-x-1/2"></div>
-            
-            {/* Progress point 1 - Active */}
-            <div className="relative flex justify-center mb-20">
-              <div className="w-16 h-16 rounded-full bg-[#4e342e] flex items-center justify-center z-10 shadow-md">
-                <Circle className="h-8 w-8 text-white" />
-              </div>
-            </div>
-            
-            {/* Progress point 2 */}
-            <div className="relative flex justify-center mb-20">
-              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center z-10 border border-gray-200">
-                <User className="h-8 w-8 text-gray-400" />
-              </div>
-            </div>
-            
-            {/* Progress point 3 */}
-            <div className="relative flex justify-center mb-20">
-              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center z-10 border border-gray-200">
-                <AlertCircle className="h-8 w-8 text-gray-400" />
-              </div>
-            </div>
-            
-            {/* Progress point 4 */}
-            <div className="relative flex justify-center">
-              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center z-10 border border-gray-200">
-                <FileText className="h-8 w-8 text-gray-400" />
-              </div>
-            </div>
+        <h2 className="text-2xl font-bold mb-8 text-[#4e342e]">
+          {validLevelCode ? `Level ${validLevelCode.toUpperCase()} Roadmap` : 'Your Roadmap'}
+        </h2>
+
+        {coursesWithUnits.length === 0 && !roadmapLoading ? (
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-lg mb-2">Coming soon</p>
+            <p className="text-sm">Courses for your level are being prepared.</p>
           </div>
-        </div>
+        ) : (
+          coursesWithUnits.map(renderCourseBlock)
+        )}
       </div>
     </div>
   );
   
-  // Simple placeholder content for other sections
-  const renderCoursesContent = () => (
-    <div className="max-w-4xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-6 text-[#4e342e]">My Courses</h1>
-      <p className="text-gray-600 mb-8">Browse and manage your enrolled courses.</p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {[1, 2, 3, 4].map((course) => (
-          <div key={course} className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="text-xl font-bold mb-2 text-[#4e342e]">Course {course}</h3>
-            <p className="text-gray-600 mb-4">Course description goes here. This would show information about the course.</p>
-            <div className="flex justify-between items-center">
-              <span className="text-sm bg-green-100 text-green-800 py-1 px-3 rounded-full">In Progress</span>
-              <button className="text-[#4e342e] hover:underline">Continue</button>
-            </div>
+  const renderCoursesContent = () => {
+    const grouped = (allCourses ?? []).reduce<Record<string, typeof allCourses>>((acc, c) => {
+      if (!c) return acc;
+      const key = c.levelCode.toUpperCase();
+      if (!acc[key]) acc[key] = [];
+      acc[key]!.push(c);
+      return acc;
+    }, {});
+
+    return (
+      <div className="max-w-4xl mx-auto p-8">
+        <h1 className="text-3xl font-bold mb-2 text-[#4e342e]">My Courses</h1>
+        <p className="text-gray-600 mb-8">Browse and manage your enrolled courses.</p>
+
+        {!allCourses ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm animate-pulse">
+                <div className="h-6 w-36 bg-gray-100 rounded mb-3" />
+                <div className="h-4 w-20 bg-gray-100 rounded mb-4" />
+                <div className="h-2 w-full bg-gray-100 rounded mb-4" />
+                <div className="h-4 w-16 bg-gray-100 rounded ml-auto" />
+              </div>
+            ))}
           </div>
-        ))}
+        ) : Object.keys(grouped).length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <p className="text-lg mb-2">Coming soon</p>
+            <p className="text-sm">Courses for your level are being prepared.</p>
+          </div>
+        ) : (
+          Object.entries(grouped).map(([level, levelCourses]) => (
+            <div key={level} className="mb-10">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-4">
+                Level {level}
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {(levelCourses ?? []).map((course) => {
+                  if (!course) return null;
+                  const pct = course.totalUnits > 0
+                    ? Math.round((course.completedUnits / course.totalUnits) * 100)
+                    : 0;
+                  const isComplete = course.completedUnits === course.totalUnits && course.totalUnits > 0;
+                  const hasStarted = course.completedUnits > 0;
+
+                  return (
+                    <div
+                      key={course.id}
+                      className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <h3 className="text-lg font-bold text-[#4e342e] leading-tight pr-2">
+                          {course.title}
+                        </h3>
+                        <span
+                          className={`flex-shrink-0 text-xs py-1 px-2.5 rounded-full font-medium ${
+                            isComplete
+                              ? 'bg-green-100 text-green-700'
+                              : hasStarted
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-gray-100 text-gray-500'
+                          }`}
+                        >
+                          {isComplete ? 'Completed' : hasStarted ? 'In progress' : 'Not started'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-4">Block {course.blockOrder}</p>
+
+                      {/* Progress bar */}
+                      <div className="mb-4">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>Units completed</span>
+                          <span>{course.completedUnits} / {course.totalUnits}</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5">
+                          <div
+                            className="bg-[#4e342e] h-1.5 rounded-full transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          className="text-sm text-[#4e342e] font-medium hover:underline flex items-center gap-1"
+                          onClick={() => setActiveSection('learn')}
+                        >
+                          {isComplete ? 'Review' : hasStarted ? 'Continue' : 'Start'}
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
+        )}
       </div>
-    </div>
-  );
+    );
+  };
   
   const renderStatsContent = () => (
     <div className="max-w-4xl mx-auto p-8">

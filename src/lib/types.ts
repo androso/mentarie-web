@@ -144,3 +144,37 @@ export type LoginUser = {
     email: string;
     password: string;
 }
+
+export type LevelCode = "a2" | "b1" | "b2";
+export type EnrollmentStatus = "active" | "completed" | "paused";
+export type UnitStatus = "locked" | "unlocked" | "in_progress" | "completed";
+export type LessonProgressStatus = "not_started" | "in_progress" | "completed";
+
+export type EnrichedCourse = {
+    id: number;
+    title: string;
+    description: string | null;
+    languageId: number;
+    levelCode: LevelCode;
+    blockOrder: number;
+    enrolled: boolean;
+    enrolledAt: string | null;
+    enrollmentStatus: EnrollmentStatus | null;
+    currentUnitId: number | null;
+    totalUnits: number;
+    completedUnits: number;
+};
+
+export type UnitWithStatus = {
+    id: number;
+    courseId: number;
+    order: number;
+    title: string;
+    communicativeGoal: string;
+    grammarTarget: string;
+    whyHardNote: string | null;
+    isCapstone: boolean | null;
+    status: UnitStatus;
+};
+
+export type CourseWithUnits = EnrichedCourse & { units: UnitWithStatus[] };
