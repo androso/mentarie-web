@@ -5,6 +5,7 @@ import { Home, Book, BarChart2, User, LogOut, Check, Lock, Trophy, ChevronRight 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCourses, useLevelRoadmap } from '@/hooks/useCourses';
+import { useUnit } from '@/hooks/useUnit';
 import type { CourseWithUnits, UnitWithStatus } from '@/lib/types';
 
 const LanguageLearningDashboard = () => {
@@ -29,6 +30,20 @@ const LanguageLearningDashboard = () => {
     primaryLanguageId,
   );
   const { data: allCourses } = useCourses(primaryLanguageId);
+
+  // Derive the next unit ID from roadmap data so useUnit can prefetch its lessons
+  const nextUnitId = (() => {
+    for (const course of coursesWithUnits) {
+      const active = course.units.find((u) => u.status === 'in_progress');
+      if (active) return active.id;
+    }
+    for (const course of coursesWithUnits) {
+      const next = course.units.find((u) => u.status === 'unlocked');
+      if (next) return next.id;
+    }
+    return null;
+  })();
+  const { data: nextUnitDetail } = useUnit(nextUnitId ?? 0);
 
   const primaryLanguageName = primaryLearningLanguage?.name || 'Not set';
   const primaryLanguageLevel = primaryLearningLanguage?.level.toUpperCase() || 'Not set';
@@ -66,7 +81,7 @@ const LanguageLearningDashboard = () => {
     return null;
   }
   
-  // Derive the "next up" unit for the Today's Lesson card
+  // Derive the "next up" unit and lesson for the Today's Lesson card
   const nextUnit = (() => {
     for (const course of coursesWithUnits) {
       const active = course.units.find((u) => u.status === 'in_progress');
@@ -78,6 +93,11 @@ const LanguageLearningDashboard = () => {
     }
     return null;
   })();
+  const nextLesson = nextUnitDetail?.lessons.find(
+    (l) => l.progress?.status === 'in_progress'
+  ) ?? nextUnitDetail?.lessons.find(
+    (l) => !l.progress || l.progress.status === 'not_started'
+  ) ?? null;
 
   const renderUnitNode = (unit: UnitWithStatus, isLast: boolean) => {
     const nodeSize = unit.isCapstone ? 'w-20 h-20' : 'w-14 h-14';
@@ -212,16 +232,23 @@ const LanguageLearningDashboard = () => {
         ) : nextUnit ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">
-              {nextUnit.unit.status === 'in_progress' ? 'Continue' : 'Up next'} · {nextUnit.course.title}
+              {nextLesson?.progress?.status === 'in_progress' ? 'Continue' : 'Up next'} · {nextUnit.course.title} · {nextUnit.unit.title}
             </p>
-            <p className="font-semibold text-gray-900 mb-1">{nextUnit.unit.title}</p>
-            <p className="text-sm text-gray-500 mb-4">{nextUnit.unit.communicativeGoal}</p>
+            <p className="font-semibold text-gray-900 mb-1">
+              {nextLesson ? nextLesson.title : nextUnit.unit.title}
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              {nextLesson ? nextLesson.objective : nextUnit.unit.communicativeGoal}
+            </p>
             <div className="flex justify-end">
               <button
-                onClick={() => router.push(`/units/${nextUnit.unit.id}`)}
+                onClick={() => nextLesson
+                  ? router.push(`/lessons/${nextLesson.id}`)
+                  : router.push(`/units/${nextUnit.unit.id}`)
+                }
                 className="bg-[#4e342e] text-white py-2 px-4 rounded-full text-sm hover:bg-[#6d4c41] transition-colors"
               >
-                {nextUnit.unit.status === 'in_progress' ? 'Resume' : 'Start'}
+                {nextLesson?.progress?.status === 'in_progress' ? 'Resume' : 'Start'}
               </button>
             </div>
           </>
