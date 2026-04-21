@@ -178,3 +178,34 @@ export type UnitWithStatus = {
 };
 
 export type CourseWithUnits = EnrichedCourse & { units: UnitWithStatus[] };
+
+export type LessonProgress = {
+    status: LessonProgressStatus;
+    score: number | null;
+    completedAt: string | null;
+    updatedAt: string | null;
+};
+
+export type LessonWithProgress = {
+    id: number;
+    unitId: number;
+    order: number;
+    title: string;
+    objective: string;
+    durationMinutes: number | null;
+    targetChunks: unknown[];
+    progress: LessonProgress | null;
+};
+
+export type UnitWithLessons = {
+    id: number;
+    courseId: number;
+    order: number;
+    title: string;
+    communicativeGoal: string;
+    grammarTarget: string;
+    whyHardNote: string | null;
+    isCapstone: boolean;
+    status: UnitStatus;
+    lessons: LessonWithProgress[];
+};

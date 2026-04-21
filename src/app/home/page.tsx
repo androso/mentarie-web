@@ -96,7 +96,11 @@ const LanguageLearningDashboard = () => {
       unit.status === 'locked' ? 'text-gray-400' : 'text-gray-900';
 
     return (
-      <div key={unit.id} className="relative flex items-start mb-6 w-full">
+      <div
+        key={unit.id}
+        className={`relative flex items-start mb-6 w-full ${unit.status !== 'locked' ? 'cursor-pointer' : ''}`}
+        onClick={() => { if (unit.status !== 'locked') router.push(`/units/${unit.id}`); }}
+      >
         {/* Connector line */}
         {!isLast && (
           <div className="absolute left-[26px] top-14 bottom-0 w-px border-l border-dashed border-gray-300" />
@@ -213,7 +217,10 @@ const LanguageLearningDashboard = () => {
             <p className="font-semibold text-gray-900 mb-1">{nextUnit.unit.title}</p>
             <p className="text-sm text-gray-500 mb-4">{nextUnit.unit.communicativeGoal}</p>
             <div className="flex justify-end">
-              <button className="bg-[#4e342e] text-white py-2 px-4 rounded-full text-sm hover:bg-[#6d4c41] transition-colors">
+              <button
+                onClick={() => router.push(`/units/${nextUnit.unit.id}`)}
+                className="bg-[#4e342e] text-white py-2 px-4 rounded-full text-sm hover:bg-[#6d4c41] transition-colors"
+              >
                 {nextUnit.unit.status === 'in_progress' ? 'Resume' : 'Start'}
               </button>
             </div>
