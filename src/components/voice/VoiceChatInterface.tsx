@@ -232,7 +232,7 @@ export default function VoiceChatInterface({
             </div>
           </div>
 
-          <aside className="flex w-full flex-col gap-5 border-t border-slate-200 px-6 py-6 lg:max-w-xs lg:border-l lg:border-t-0 lg:px-8 lg:py-8 lg:overflow-y-auto">
+          <aside className="flex w-full flex-col gap-5 border-t border-slate-200 px-6 py-6 lg:w-[26rem] lg:shrink-0 lg:border-l lg:border-t-0 lg:px-8 lg:py-8 lg:overflow-y-auto">
             <ProgressBar
               totalChunks={targetChunksToShow.length}
               usedChunks={usedChunks.length}
