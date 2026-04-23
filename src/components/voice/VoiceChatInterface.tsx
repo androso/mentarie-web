@@ -11,6 +11,8 @@ import {
   MessageSquare,
   Send,
   AudioWaveform,
+  List,
+  Target,
 } from "lucide-react";
 import { ConversationMessage, ResponseSuggestion } from "@/lib/types";
 import TargetChunks from "@/components/voice/TargetChunks";
@@ -131,12 +133,7 @@ export default function VoiceChatInterface({
             <div className="flex flex-1 min-h-0 flex-col gap-6 px-6 py-6 sm:px-12 sm:py-10">
               {chatMode === "voice" && (
                 <div className="flex items-center justify-center">
-                  <div className="flex w-full max-w-sm flex-col items-center rounded-[28px] bg-[#141E35] px-6 py-6 text-white shadow-[0_24px_64px_-24px_rgba(12,18,32,0.85)]">
-                    <WaveAnimation animationState={animationState} waveRef={waveRef} />
-                    <span className="text-sm font-medium text-white/70">
-                      Listening for your voice
-                    </span>
-                  </div>
+                  <WaveAnimation animationState={animationState} waveRef={waveRef} />
                 </div>
               )}
 
@@ -233,23 +230,70 @@ export default function VoiceChatInterface({
           </div>
 
           <aside className="flex w-full flex-col gap-5 border-t border-slate-200 px-6 py-6 lg:w-[33rem] lg:shrink-0 lg:border-l lg:border-t-0 lg:px-8 lg:py-8 lg:overflow-y-auto">
-            <ProgressBar
-              totalChunks={targetChunksToShow.length}
-              usedChunks={usedChunks.length}
-            />
-
-            <ResponseSuggestions
-              suggestions={suggestions}
-              onSuggestionClick={handleSuggestionClick}
-              isLoading={false}
-            />
-
-            {targetChunksToShow.length > 0 && (
-              <TargetChunks
-                targetChunks={targetChunksToShow}
-                usedChunks={usedChunks}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Lesson Progress
+              </p>
+              <ProgressBar
+                totalChunks={targetChunksToShow.length}
+                usedChunks={usedChunks.length}
               />
-            )}
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col gap-4">
+              <section className="flex min-h-[14rem] flex-1 flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7C82FF]/10 text-[#7C82FF]">
+                      <List className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        Suggested Responses
+                      </h3>
+                      <p className="text-xs text-slate-500">Tap to prefill your reply</p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+                    {suggestions.length}
+                  </span>
+                </div>
+
+                <ResponseSuggestions
+                  suggestions={suggestions}
+                  onSuggestionClick={handleSuggestionClick}
+                  isLoading={false}
+                />
+              </section>
+
+              {targetChunksToShow.length > 0 && (
+                <section className="flex min-h-[16rem] flex-1 flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                        <Target className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">
+                          Target Phrases
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Keep an eye on phrase coverage
+                        </p>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+                      {usedChunks.length}/{targetChunksToShow.length}
+                    </span>
+                  </div>
+
+                  <TargetChunks
+                    targetChunks={targetChunksToShow}
+                    usedChunks={usedChunks}
+                  />
+                </section>
+              )}
+            </div>
           </aside>
         </div>
       </div>

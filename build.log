@@ -1,0 +1,9 @@
+
+> test@0.1.0 build /home/androso/dev/mentarie-related/mentarie-web
+> next build
+
+   ▲ Next.js 15.2.1
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ELIFECYCLE  Command failed with exit code 130.
