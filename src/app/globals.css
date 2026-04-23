@@ -3,7 +3,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes wave {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
 @theme inline {
+  --animate-wave: wave 3s ease-in-out infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
