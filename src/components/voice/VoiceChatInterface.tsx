@@ -102,7 +102,7 @@ export default function VoiceChatInterface({
           <div className="flex items-center gap-4">
             {showBackButton && (
               <button
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-white border border-gray-200 text-[#4e342e] shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4e342e]/30"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white border border-gray-200 text-[#4e342e] shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4e342e]/30"
                 onClick={handleBackClick}
                 type="button"
               >
@@ -182,7 +182,7 @@ export default function VoiceChatInterface({
                   <div className="flex items-center gap-2 rounded-full bg-[#E4E6F4] p-1.5 shadow-inner">
                     <button
                       className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition",
+                        "flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-slate-500 transition",
                         chatMode === "voice"
                           ? "bg-[#7C82FF] text-white shadow-[0_16px_32px_-16px_rgba(124,130,255,0.6)]"
                           : "hover:text-slate-700"
@@ -196,7 +196,7 @@ export default function VoiceChatInterface({
                     </button>
                     <button
                       className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition",
+                        "flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-slate-500 transition",
                         chatMode === "chat"
                           ? "bg-[#7C82FF] text-white shadow-[0_16px_32px_-16px_rgba(124,130,255,0.6)]"
                           : "hover:text-slate-700"

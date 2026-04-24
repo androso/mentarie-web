@@ -82,7 +82,7 @@ export default function ResponseSuggestions({
               type="button"
               onClick={() => handleSuggestionClick(suggestion)}
               onKeyDown={(event) => handleKeyDown(event, suggestion)}
-              className="group flex w-56 shrink-0 flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-4 text-left text-slate-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#7C82FF]/40 hover:shadow-[0_14px_30px_-22px_rgba(124,130,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C82FF]"
+              className="group flex w-56 shrink-0 cursor-pointer flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-4 text-left text-slate-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#7C82FF]/40 hover:shadow-[0_14px_30px_-22px_rgba(124,130,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C82FF]"
             >
               <div className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7C82FF]/10 text-[#7C82FF]">
