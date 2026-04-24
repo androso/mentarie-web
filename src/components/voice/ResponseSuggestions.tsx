@@ -64,7 +64,7 @@ export default function ResponseSuggestions({
   const hasSuggestions = suggestions.length > 0;
 
   return (
-    <div className={cn("h-full w-full overflow-y-auto pr-1", className)}>
+    <div className={cn("w-full overflow-x-auto", className)}>
       {isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((index) => (
@@ -75,14 +75,14 @@ export default function ResponseSuggestions({
           ))}
         </div>
       ) : hasSuggestions ? (
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="flex flex-row gap-3">
           {suggestions.map((suggestion, index) => (
             <button
               key={`${suggestion.text}-${index}`}
               type="button"
               onClick={() => handleSuggestionClick(suggestion)}
               onKeyDown={(event) => handleKeyDown(event, suggestion)}
-              className="group flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-4 text-left text-slate-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#7C82FF]/40 hover:shadow-[0_14px_30px_-22px_rgba(124,130,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C82FF]"
+              className="group flex w-56 shrink-0 flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-4 text-left text-slate-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#7C82FF]/40 hover:shadow-[0_14px_30px_-22px_rgba(124,130,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C82FF]"
             >
               <div className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7C82FF]/10 text-[#7C82FF]">
