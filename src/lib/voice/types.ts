@@ -40,6 +40,8 @@ export interface OpenAIVoiceOptions {
     agentConfig: AgentConfig;
     /** Called when OpenAI invokes a tool. Return value is sent back as function_call_output. */
     onFunctionCall?: (name: string, args: Record<string, unknown>) => unknown | Promise<unknown>;
+    /** Called after each assistant message completes. Receives the full transcript snapshot. */
+    onAssistantResponseComplete?: (transcript: TranscriptItem[]) => void;
     /** Defaults to null (PTT mode). Pass server_vad config for automatic turn detection. */
     turnDetection?: OpenAIVoiceTurnDetection | null;
     voice?: string;

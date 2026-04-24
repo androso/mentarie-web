@@ -179,6 +179,8 @@ export type UnitWithStatus = {
 
 export type CourseWithUnits = EnrichedCourse & { units: UnitWithStatus[] };
 
+export type TargetChunk = { order: number; text: string };
+
 export type LessonProgress = {
     status: LessonProgressStatus;
     score: number | null;
@@ -193,7 +195,7 @@ export type LessonWithProgress = {
     title: string;
     objective: string;
     durationMinutes: number | null;
-    targetChunks: unknown[];
+    targetChunks: TargetChunk[];
     progress: LessonProgress | null;
 };
 

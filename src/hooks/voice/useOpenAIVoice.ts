@@ -10,6 +10,7 @@ import type { ServerEvent } from "@/lib/types";
 export function useOpenAIVoice({
     agentConfig,
     onFunctionCall,
+    onAssistantResponseComplete,
     turnDetection = null,
     voice = "sage",
 }: OpenAIVoiceOptions): VoiceSession {
@@ -127,6 +128,9 @@ export function useOpenAIVoice({
                 case "response.output_item.done": {
                     const itemId = event.item?.id;
                     if (itemId) updateTranscriptItem(itemId, { status: "DONE" });
+                    if (event.item?.role === "assistant") {
+                        onAssistantResponseComplete?.(transcriptItems);
+                    }
                     break;
                 }
             }
@@ -134,6 +138,7 @@ export function useOpenAIVoice({
         [
             agentConfig,
             onFunctionCall,
+            onAssistantResponseComplete,
             transcriptItems,
             addTranscriptMessage,
             updateTranscriptMessage,

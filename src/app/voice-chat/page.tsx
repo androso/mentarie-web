@@ -81,7 +81,6 @@ export default function VoiceChatPage() {
           title={staticLesson.title}
           showBackButton={false}
           lessonData={staticLesson}
-          initialMessages={staticMessages}
           initialUsedChunks={staticUsedChunks}
           initialSuggestions={staticSuggestions}
         />

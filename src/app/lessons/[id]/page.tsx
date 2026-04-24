@@ -1,50 +1,74 @@
-"use client"
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useCallback, useEffect, useMemo } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { useLesson } from "@/hooks/useLesson";
+import { useUpdateLessonProgress } from "@/hooks/useUnit";
+import { createDynamicAgent } from "@/lib/agentConfigs/dynamicAgent";
+import VoiceChatInterface, { LessonData } from "@/components/voice/VoiceChatInterface";
+import AppSidebar from "@/components/AppSidebar";
 
 export default function LessonPage() {
     const router = useRouter();
     const params = useParams();
-    const lessonId = params.id;
-    const { user, isLoading } = useAuth();
+    const lessonId = params.id as string;
+
+    const { user, isLoading: authLoading } = useAuth();
+    const { data: lesson, isLoading: lessonLoading } = useLesson(lessonId);
+    const updateProgress = useUpdateLessonProgress(lesson?.unitId ?? 0);
 
     useEffect(() => {
-        if (!isLoading && !user) {
-            router.push('/');
+        if (!authLoading && !user) {
+            router.push("/");
         }
-    }, [isLoading, user, router]);
+    }, [authLoading, user, router]);
 
-    if (isLoading) {
+    const agentConfig = useMemo(() => {
+        if (!lesson) return null;
+        return createDynamicAgent(lesson);
+    }, [lesson]);
+
+    const lessonData = useMemo<LessonData | undefined>(() => {
+        if (!lesson) return undefined;
+        return {
+            title: lesson.title,
+            objective: lesson.objective,
+            targetChunks: lesson.targetChunks,
+        };
+    }, [lesson]);
+
+    const handleLessonComplete = useCallback(() => {
+        updateProgress.mutate({ lessonId: Number(lessonId), status: "completed" });
+    }, [lessonId, updateProgress]);
+
+    if (authLoading || lessonLoading) {
         return <div className="bg-gray-100 min-h-screen" />;
     }
 
-    if (!user) {
-        return null;
+    if (!user) return null;
+
+    if (!lesson || !agentConfig) {
+        return (
+            <div className="bg-gray-100 min-h-screen flex items-center justify-center">
+                <p className="text-gray-500">Lesson not found.</p>
+            </div>
+        );
     }
 
     return (
-        <div className="bg-gray-100 min-h-screen">
-            <div className="max-w-4xl mx-auto p-8">
-                <button
-                    onClick={() => router.push('/home')}
-                    className="text-sm text-[#4e342e] hover:underline flex items-center gap-1 mb-6"
-                >
-                    <ChevronLeft className="h-4 w-4" />
-                    Back to Dashboard
-                </button>
-
-                <div className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm">
-                    <h1 className="text-3xl font-bold text-[#4e342e] mb-3">
-                        Lesson {lessonId}
-                    </h1>
-                    <p className="text-gray-500">
-                        Coming soon — lesson player is under construction.
-                    </p>
-                </div>
-            </div>
+        <div className="h-screen overflow-hidden bg-gray-100">
+            <AppSidebar activeItem="learn" />
+            <main className="ml-64 h-screen overflow-hidden">
+                <VoiceChatInterface
+                    title={lesson.title}
+                    showBackButton
+                    onBack={() => router.back()}
+                    lessonData={lessonData}
+                    agentConfig={agentConfig}
+                    onLessonComplete={handleLessonComplete}
+                />
+            </main>
         </div>
     );
 }

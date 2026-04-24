@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useMemo } from "react";
 import AudioControls from "@/components/voice/conversation/AudioControls";
 import ChatHistory from "@/components/voice/conversation/ChatHistory";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,14 @@ import {
   List,
   Target,
 } from "lucide-react";
-import { ConversationMessage, ResponseSuggestion } from "@/lib/types";
+import { AgentConfig, ConversationMessage, ResponseSuggestion, TranscriptItem } from "@/lib/types";
 import TargetChunks from "@/components/voice/TargetChunks";
 import ProgressBar from "@/components/voice/ProgressBar";
 import ResponseSuggestions from "@/components/voice/ResponseSuggestions";
 import { WaveAnimation } from "@/components/voice/WaveAnimation";
 import { cn } from "@/lib/utils";
+import { useOpenAIVoice } from "@/hooks/voice/useOpenAIVoice";
+import type { VoiceSession } from "@/lib/voice/types";
 
 export interface LessonData {
   title: string;
@@ -34,7 +36,8 @@ interface VoiceChatInterfaceProps {
   showBackButton?: boolean;
   className?: string;
   lessonData?: LessonData;
-  initialMessages?: ConversationMessage[];
+  agentConfig?: AgentConfig;
+  onLessonComplete?: () => void;
   initialUsedChunks?: string[];
   initialSuggestions?: ResponseSuggestion[];
 }
@@ -46,38 +49,121 @@ export default function VoiceChatInterface({
   showBackButton = false,
   className = "",
   lessonData,
-  initialMessages = [],
+  agentConfig,
+  onLessonComplete,
   initialUsedChunks = [],
   initialSuggestions = [],
 }: VoiceChatInterfaceProps) {
   const [userText, setUserText] = useState<string>("");
   const [chatMode, setChatMode] = useState<"voice" | "chat">("voice");
-  const [usedChunks] = useState<string[]>(initialUsedChunks);
-  const [suggestions] = useState<ResponseSuggestion[]>(initialSuggestions);
-  const [conversationHistory, setConversationHistory] =
-    useState<ConversationMessage[]>(initialMessages);
-
-  // Static state — no real WebRTC connection for this visual preview
-  const sessionStatus = "DISCONNECTED" as const;
-  const isPTTUserSpeaking = false;
-  const animationState = "idle" as const;
+  const [usedChunks, setUsedChunks] = useState<string[]>(initialUsedChunks);
+  const [suggestions, setSuggestions] = useState<ResponseSuggestion[]>(initialSuggestions);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   const waveRef = useRef<HTMLDivElement>(null);
+  // Ref to break the circular dependency between effectiveAgent and voiceSession
+  const voiceSessionRef = useRef<VoiceSession | null>(null);
 
   const targetChunksToShow = lessonData?.targetChunks ?? [];
 
-  const handleSuggestionClick = useCallback((suggestionText: string) => {
-    setUserText(suggestionText);
-  }, []);
+  // Inject lesson tool handlers into the agent config so they can update local state
+  const effectiveAgent = useMemo<AgentConfig>(() => {
+    const base: AgentConfig = agentConfig ?? {
+      name: "defaultAssistant",
+      publicDescription: "A helpful AI language assistant.",
+      instructions: "You are a helpful AI language learning assistant. Engage in natural conversation to help the user practice their language skills.",
+      tools: [],
+    };
+    return {
+      ...base,
+      toolLogic: {
+        ...base.toolLogic,
+        console_greeting: ({ message }: { message: string }) => {
+          console.log("[agent greeting]", message);
+          return { status: "ok" };
+        },
+        update_target_chunks: ({ chunks }: { chunks: string[] }) => {
+          let totalUsed = 0;
+          setUsedChunks((prev) => {
+            const merged = [...new Set([...prev, ...chunks])];
+            totalUsed = merged.length;
+            return merged;
+          });
+          return { totalUsed };
+        },
+        finish_lesson: () => {
+          setTimeout(() => voiceSessionRef.current?.disconnect(), 15_000);
+          onLessonComplete?.();
+          return { status: "ok" };
+        },
+      },
+    };
+  }, [agentConfig, onLessonComplete]);
+
+  const handleAssistantResponseComplete = useCallback(
+    async (transcript: TranscriptItem[]) => {
+      const history: ConversationMessage[] = transcript
+        .filter((t) => t.type === "MESSAGE" && t.status === "DONE" && t.role)
+        .slice(-10)
+        .map((t) => ({ role: t.role!, content: t.title ?? "" }));
+      if (history.length === 0) return;
+      setSuggestionsLoading(true);
+      try {
+        const res = await fetch("/api/ai/suggestions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationContext: history }),
+        });
+        const data = await res.json();
+        setSuggestions(data.suggestions ?? []);
+      } catch {
+        // silently fail — suggestions are non-critical
+      } finally {
+        setSuggestionsLoading(false);
+      }
+    },
+    []
+  );
+
+  const voiceSession = useOpenAIVoice({
+    agentConfig: effectiveAgent,
+    onAssistantResponseComplete: handleAssistantResponseComplete,
+  });
+
+  voiceSessionRef.current = voiceSession;
+
+  const animationState = voiceSession.isUserSpeaking
+    ? "listening"
+    : voiceSession.isAgentSpeaking
+    ? "speaking"
+    : "idle";
+
+  const conversationHistory: ConversationMessage[] = voiceSession.transcript
+    .filter((t) => t.type === "MESSAGE" && t.role)
+    .map((t) => ({ role: t.role!, content: t.title ?? "" }));
+
+  const isConnected = voiceSession.status === "CONNECTED";
+  const isConnecting = voiceSession.status === "CONNECTING";
+
+  const handleSuggestionClick = useCallback(
+    (suggestionText: string) => {
+      if (isConnected) {
+        voiceSession.sendTextMessage(suggestionText);
+      } else {
+        setUserText(suggestionText);
+        setChatMode("chat");
+      }
+    },
+    [isConnected, voiceSession]
+  );
 
   const handleSendTextMessage = useCallback(() => {
     if (!userText.trim()) return;
-    setConversationHistory((prev) => [
-      ...prev,
-      { role: "user" as const, content: userText.trim() },
-    ]);
+    if (isConnected) {
+      voiceSession.sendTextMessage(userText.trim());
+    }
     setUserText("");
-  }, [userText]);
+  }, [userText, isConnected, voiceSession]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -86,9 +172,13 @@ export default function VoiceChatInterface({
     }
   };
 
-  const handleBackClick = () => {
-    onBack?.();
-  };
+  const handleConnectToggle = useCallback(() => {
+    if (voiceSession.status === "DISCONNECTED") {
+      voiceSession.connect();
+    } else {
+      voiceSession.disconnect();
+    }
+  }, [voiceSession]);
 
   return (
     <div
@@ -103,7 +193,7 @@ export default function VoiceChatInterface({
             {showBackButton && (
               <button
                 className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white border border-gray-200 text-[#4e342e] shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4e342e]/30"
-                onClick={handleBackClick}
+                onClick={onBack}
                 type="button"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -158,7 +248,7 @@ export default function VoiceChatInterface({
                     <ResponseSuggestions
                       suggestions={suggestions}
                       onSuggestionClick={handleSuggestionClick}
-                      isLoading={false}
+                      isLoading={suggestionsLoading}
                     />
                   </section>
                 </>
@@ -168,7 +258,7 @@ export default function VoiceChatInterface({
                 <div className="flex-1 min-h-0 overflow-hidden rounded-[28px] bg-[#EEF0F6] px-4 py-4 sm:px-6 sm:py-6">
                   <ChatHistory
                     messages={conversationHistory}
-                    isAssistantResponding={false}
+                    isAssistantResponding={isConnected && voiceSession.isAgentSpeaking}
                     pendingAssistantMessage={null}
                     className="h-full"
                   />
@@ -214,10 +304,10 @@ export default function VoiceChatInterface({
                 {chatMode === "voice" ? (
                   <div className="flex flex-1 justify-center">
                     <AudioControls
-                      isUserSpeaking={isPTTUserSpeaking}
-                      onStart={() => {}}
-                      onStop={() => {}}
-                      disabled={true}
+                      isUserSpeaking={voiceSession.isUserSpeaking}
+                      onStart={voiceSession.startTurn}
+                      onStop={voiceSession.endTurn}
+                      disabled={!isConnected}
                     />
                   </div>
                 ) : (
@@ -227,13 +317,14 @@ export default function VoiceChatInterface({
                         value={userText}
                         onChange={(e) => setUserText(e.target.value)}
                         onKeyDown={handleKeyPress}
-                        placeholder="Start typing..."
+                        placeholder={isConnected ? "Type a message..." : "Connect first to chat"}
+                        disabled={!isConnected}
                         className="h-full min-h-0 flex-1 resize-none border-0 bg-transparent px-0 py-1 text-base leading-tight placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-0"
                         rows={1}
                       />
                       <Button
                         onClick={handleSendTextMessage}
-                        disabled={!userText.trim()}
+                        disabled={!userText.trim() || !isConnected}
                         className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-600 shadow-sm transition hover:text-slate-900 disabled:opacity-50"
                         size="icon"
                       >
@@ -246,13 +337,17 @@ export default function VoiceChatInterface({
                 <Button
                   variant="ghost"
                   size="lg"
-                  onClick={() => {}}
-                  className="h-11 rounded-full px-6 text-sm font-semibold transition bg-[#7C82FF] text-white shadow-[0_12px_24px_-12px_rgba(124,130,255,0.8)] hover:bg-[#6f76ff]"
+                  onClick={handleConnectToggle}
+                  disabled={isConnecting}
+                  className={cn(
+                    "h-11 rounded-full px-6 text-sm font-semibold transition",
+                    isConnected
+                      ? "bg-red-500 text-white shadow-[0_12px_24px_-12px_rgba(239,68,68,0.8)] hover:bg-red-600"
+                      : "bg-[#7C82FF] text-white shadow-[0_12px_24px_-12px_rgba(124,130,255,0.8)] hover:bg-[#6f76ff]"
+                  )}
                 >
-                  <>
-                    <Power className="mr-2 h-4 w-4" />
-                    Connect
-                  </>
+                  <Power className="mr-2 h-4 w-4" />
+                  {isConnecting ? "Connecting..." : isConnected ? "Disconnect" : "Connect"}
                 </Button>
               </div>
             </div>
