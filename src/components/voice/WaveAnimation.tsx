@@ -12,7 +12,7 @@ export const WaveAnimation: React.FC<WaveAnimationProps> = ({
   waveRef,
 }) => {
   return (
-    <div className="w-64 h-64 mb-8 relative">
+    <div className="w-64 h-64 relative">
       <div className="absolute inset-0 rounded-full border border-indigo-100"></div>
       <div
         ref={waveRef}

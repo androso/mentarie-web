@@ -130,14 +130,14 @@ export default function VoiceChatInterface({
       <div className="mx-auto flex h-full w-full max-h-full flex-1 overflow-hidden">
         <div className="flex h-full w-full flex-col overflow-hidden rounded-[32px] bg-white text-slate-900 shadow-[0_32px_80px_-32px_rgba(10,17,32,0.65)] lg:flex-row">
           <div className="flex flex-1 min-h-0 flex-col lg:w-[60%] lg:flex-none">
-            <div className="flex flex-1 min-h-0 flex-col gap-6 px-6 py-6 sm:px-12 sm:py-10">
+            <div className="flex flex-1 min-h-0 flex-col gap-4 px-6 py-4 sm:px-12 sm:py-6">
               {chatMode === "voice" && (
                 <>
                   <div className="flex items-center justify-center">
                     <WaveAnimation animationState={animationState} waveRef={waveRef} />
                   </div>
 
-                  <section className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <section className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                     <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
                       <div className="flex items-center gap-2.5">
                         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7C82FF]/10 text-[#7C82FF]">

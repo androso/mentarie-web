@@ -64,7 +64,7 @@ export default function ResponseSuggestions({
   const hasSuggestions = suggestions.length > 0;
 
   return (
-    <div className={cn("w-full overflow-x-auto", className)}>
+    <div className={cn("w-full overflow-x-auto pt-0.5 pb-0.5", className)}>
       {isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((index) => (
