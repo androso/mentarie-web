@@ -59,7 +59,7 @@ export default function PracticeLessonPage() {
 
     return (
         <div className="h-screen overflow-hidden bg-gray-100">
-            <AppSidebar activeItem="learn" />
+            <AppSidebar activeItem="practice" />
             <main className="ml-64 h-screen overflow-hidden">
                 <VoiceChatInterface
                     title={lesson.title}

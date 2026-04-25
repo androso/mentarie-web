@@ -1,20 +1,21 @@
 "use client";
 
-import { Home, Book, BarChart2, User, LogOut } from "lucide-react";
+import { Home, Book, BarChart2, User, LogOut, Mic } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
-type NavItem = "learn" | "courses" | "stats" | "account";
+type NavItem = "learn" | "courses" | "stats" | "account" | "practice";
 
 interface AppSidebarProps {
   activeItem?: NavItem;
 }
 
 const navLinks: { id: NavItem; label: string; icon: React.ElementType; href: string }[] = [
-  { id: "learn", label: "Learn", icon: Home, href: "/home" },
-  { id: "courses", label: "Courses", icon: Book, href: "/home" },
-  { id: "stats", label: "Stats", icon: BarChart2, href: "/home" },
-  { id: "account", label: "Account", icon: User, href: "/home" },
+  { id: "learn", label: "Learn", icon: Home, href: "/home?section=learn" },
+  { id: "courses", label: "Courses", icon: Book, href: "/home?section=courses" },
+  { id: "practice", label: "Practice", icon: Mic, href: "/practices" },
+  { id: "stats", label: "Stats", icon: BarChart2, href: "/home?section=stats" },
+  { id: "account", label: "Account", icon: User, href: "/home?section=account" },
 ];
 
 export default function AppSidebar({ activeItem }: AppSidebarProps) {

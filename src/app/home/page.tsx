@@ -1,15 +1,16 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Home, Book, BarChart2, User, LogOut, Check, Lock, Trophy, ChevronRight } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Home, Book, BarChart2, User, LogOut, Check, Lock, Trophy, ChevronRight, Mic } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCourses, useLevelRoadmap } from '@/hooks/useCourses';
 import { useUnit } from '@/hooks/useUnit';
 import type { CourseWithUnits, UnitWithStatus } from '@/lib/types';
 
 const LanguageLearningDashboard = () => {
-  const [activeSection, setActiveSection] = useState('learn');
+  const searchParams = useSearchParams();
+  const [activeSection, setActiveSection] = useState(() => searchParams.get('section') ?? 'learn');
   const router = useRouter();
   const { user, nativeLanguage, learningLanguages, isLoading, logoutMutation } = useAuth();
 
@@ -499,31 +500,38 @@ const LanguageLearningDashboard = () => {
             <Home className="h-5 w-5" />
             Learn
           </a>
-          <a 
-            href="#" 
+          <a
+            href="#"
             className={`flex items-center px-5 py-4 font-medium gap-2.5 ${activeSection === 'courses' ? 'bg-[#4e342e] text-white' : 'text-[#4e342e] hover:bg-gray-100'}`}
             onClick={() => setActiveSection('courses')}
           >
             <Book className="h-5 w-5" />
             Courses
           </a>
-          <a 
-            href="#" 
+          <a
+            href="#"
+            className="flex items-center px-5 py-4 font-medium gap-2.5 text-[#4e342e] hover:bg-gray-100"
+            onClick={(e) => { e.preventDefault(); router.push('/practices'); }}
+          >
+            <Mic className="h-5 w-5" />
+            Practice
+          </a>
+          <a
+            href="#"
             className={`flex items-center px-5 py-4 font-medium gap-2.5 ${activeSection === 'stats' ? 'bg-[#4e342e] text-white' : 'text-[#4e342e] hover:bg-gray-100'}`}
             onClick={() => setActiveSection('stats')}
           >
             <BarChart2 className="h-5 w-5" />
             Stats
           </a>
-          <a 
-            href="#" 
+          <a
+            href="#"
             className={`flex items-center px-5 py-4 font-medium gap-2.5 ${activeSection === 'account' ? 'bg-[#4e342e] text-white' : 'text-[#4e342e] hover:bg-gray-100'}`}
             onClick={() => setActiveSection('account')}
           >
             <User className="h-5 w-5" />
             Account
           </a>
-          
           <div className="mt-auto">
             <a 
               href="#" 
@@ -551,4 +559,10 @@ const LanguageLearningDashboard = () => {
   );
 };
 
-export default LanguageLearningDashboard;
+export default function Page() {
+  return (
+    <React.Suspense fallback={<div className="bg-gray-100 min-h-screen" />}>
+      <LanguageLearningDashboard />
+    </React.Suspense>
+  );
+}
