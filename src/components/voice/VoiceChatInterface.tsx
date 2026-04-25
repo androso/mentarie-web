@@ -14,8 +14,9 @@ import {
   List,
   Target,
 } from "lucide-react";
-import { AgentConfig, ConversationMessage, ResponseSuggestion, TranscriptItem } from "@/lib/types";
+import { AgentConfig, ConversationMessage, ResponseSuggestion, TranscriptItem, VocabularyItem } from "@/lib/types";
 import TargetChunks from "@/components/voice/TargetChunks";
+import VocabularyList from "@/components/voice/VocabularyList";
 import ProgressBar from "@/components/voice/ProgressBar";
 import ResponseSuggestions from "@/components/voice/ResponseSuggestions";
 import { WaveAnimation } from "@/components/voice/WaveAnimation";
@@ -27,6 +28,8 @@ export interface LessonData {
   title: string;
   objective: string;
   targetChunks: { order: number; text: string }[];
+  vocabulary?: VocabularyItem[];
+  competencies?: string[];
 }
 
 interface VoiceChatInterfaceProps {
@@ -65,6 +68,8 @@ export default function VoiceChatInterface({
   const voiceSessionRef = useRef<VoiceSession | null>(null);
 
   const targetChunksToShow = lessonData?.targetChunks ?? [];
+  const vocabularyToShow = lessonData?.vocabulary ?? [];
+  const competenciesToShow = lessonData?.competencies ?? [];
 
   // Inject lesson tool handlers into the agent config so they can update local state
   const effectiveAgent = useMemo<AgentConfig>(() => {
@@ -212,12 +217,21 @@ export default function VoiceChatInterface({
                   {description ?? lessonData?.objective}
                 </p>
               )}
+              {competenciesToShow.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {competenciesToShow.map((c, i) => (
+                    <span key={i} className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 border border-indigo-100">
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      <div className="mx-auto flex h-full w-full max-h-full flex-1 overflow-hidden">
+      <div className="mx-auto flex h-full w-full max-h-full flex-1 overflow-hidden rounded-[32px]">
         <div className="flex h-full w-full flex-col overflow-hidden rounded-[32px] bg-white text-slate-900 shadow-[0_32px_80px_-32px_rgba(10,17,32,0.65)] lg:flex-row">
           <div className="flex flex-1 min-h-0 flex-col lg:w-[60%] lg:flex-none">
             <div className="flex flex-1 min-h-0 flex-col gap-4 px-6 py-4 sm:px-12 sm:py-6">
@@ -390,6 +404,21 @@ export default function VoiceChatInterface({
                     targetChunks={targetChunksToShow}
                     usedChunks={usedChunks}
                   />
+                </section>
+              )}
+
+              {vocabularyToShow.length > 0 && (
+                <section className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">Vocabulary</h3>
+                      <p className="text-xs text-slate-500">Key words for this lesson</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+                      {vocabularyToShow.length}
+                    </span>
+                  </div>
+                  <VocabularyList vocabulary={vocabularyToShow} />
                 </section>
               )}
             </div>

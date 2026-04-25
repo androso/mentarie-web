@@ -199,6 +199,24 @@ export type LessonWithProgress = {
     progress: LessonProgress | null;
 };
 
+export type Skill = "pronunciation" | "listening" | "reading" | "writing" | "speaking";
+export type VocabularyItem = { text: string; meaning?: string };
+
+export type PracticeLesson = {
+    id: number;
+    languageId: number;
+    levelCode: UserLevel;
+    title: string;
+    objective: string;
+    durationMinutes: number | null;
+    skills: Skill[];
+    competencies: string[];
+    vocabulary: VocabularyItem[];
+    functionalLanguage: { order: number; text: string }[];
+    createdAt: string;
+    updatedAt: string;
+};
+
 export type UnitWithLessons = {
     id: number;
     courseId: number;
